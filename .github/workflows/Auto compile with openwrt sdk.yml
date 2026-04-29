@@ -42,7 +42,10 @@ jobs:
           url_tags: https://api.github.com/repos/${{ env.passwall }}/releases/latest
         run: |
           cd luci-app-passwall
-          latest_version=$(awk -F ':=' '/^PKG_VERSION:=|^PKG_RELEASE:=/ {print $2}' Makefile | sed ':a;N;s/\$(PKG_VERSION)-//;s/\n$//;s/\n/-/;ba')
+          pkg_version=$(awk -F ':=' '/^PKG_VERSION:=/ {print $2}' Makefile | head -n 1)
+          pkg_release=$(awk -F ':=' '/^PKG_RELEASE:=/ {print $2}' Makefile | head -n 1)
+          latest_version="$pkg_version"
+          [ -n "$pkg_release" ] && [ "$pkg_release" != "1" ] && latest_version="${latest_version}-${pkg_release}"
           echo "latest_version=${latest_version}" >> $GITHUB_OUTPUT
 
           prerelease=$([ "${{ github.ref_name }}" == "main" ] && echo false || echo true)
@@ -121,8 +124,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - url_sdk: https://archive.openwrt.org/releases/21.02.7/targets/x86/64/openwrt-sdk-21.02.7-x86-64_gcc-8.4.0_musl.Linux-x86_64.tar.xz
+            ver: "22.03-"
+
           - url_sdk: https://downloads.openwrt.org/releases/24.10.5/targets/x86/64/openwrt-sdk-24.10.5-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
             ver: "23.05-24.10"
+
+          - url_sdk: https://downloads.openwrt.org/snapshots/targets/x86/64/openwrt-sdk-x86-64_gcc-14.3.0_musl.Linux-x86_64.tar.zst
+            ver: "25.12+"
     steps:
       - name: Install packages
         run: |

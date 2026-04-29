@@ -875,6 +875,7 @@ _update_wan_sets() {
 
 	local WAN6_IP=$(get_wan_ips ip6)
 	[ -n "${WAN6_IP}" ] && {
+		# Keep WAN6 exemptions populated during IPv6 TProxy hotplug updates.
 		if [ "${PROXY_IPV6:-$(config_t_get global_forwarding ipv6_tproxy 0)}" != "1" ]; then
 			nft flush set $NFTABLE_NAME $NFTSET_WAN6
 		fi
