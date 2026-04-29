@@ -11,6 +11,9 @@ PKG_VERSION:=2026-04-26
 PKG_RELEASE:=MitaHill
 PKG_PO_VERSION:=$(PKG_VERSION)
 
+ifeq ($(MITAHILL_MINIMAL_IPK),1)
+PKG_CONFIG_DEPENDS:=
+else
 PKG_CONFIG_DEPENDS:= \
 	CONFIG_PACKAGE_$(PKG_NAME)_Iptables_Transparent_Proxy \
 	CONFIG_PACKAGE_$(PKG_NAME)_Nftables_Transparent_Proxy \
@@ -33,14 +36,20 @@ PKG_CONFIG_DEPENDS:= \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_V2ray_Plugin \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Xray \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Xray_Plugin
+endif
 
 LUCI_TITLE:=LuCI support for PassWall
 LUCI_PKGARCH:=all
+ifeq ($(MITAHILL_MINIMAL_IPK),1)
+LUCI_DEPENDS:=
+else
 LUCI_DEPENDS:=+coreutils +coreutils-base64 +coreutils-nohup +curl \
 	+chinadns-ng +dns2socks +dnsmasq-full +ip-full \
 	+libuci-lua +lua +luci-compat +luci-lib-jsonc \
 	+microsocks +resolveip +tcping
+endif
 
+ifneq ($(MITAHILL_MINIMAL_IPK),1)
 define Package/$(PKG_NAME)/config
 menu "Configuration"
 	depends on PACKAGE_$(PKG_NAME)
@@ -173,6 +182,7 @@ config PACKAGE_$(PKG_NAME)_INCLUDE_Xray_Plugin
 
 endmenu
 endef
+endif
 
 define Package/$(PKG_NAME)/conffiles
 /etc/config/passwall
