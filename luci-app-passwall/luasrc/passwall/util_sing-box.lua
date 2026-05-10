@@ -1388,12 +1388,27 @@ function gen_config(var)
 						to_outbound = gen_outbound(node[".name"], to_node)
 					end
 					if to_outbound then
-						to_outbound.tag = outbound.tag .. " -> " .. to_outbound.tag
-						if to_node.type == "sing-box" then
-							to_outbound.detour = outbound.tag
+						-- URLTest 作为分流前置代理时，分流规则的出口应是
+						-- “URLTest 当前选中节点 -> 落地节点”。如果这里只重复
+						-- 插入同名链式 outbound，可能导致配置里出现重复 tag；
+						-- 复用已有链路即可保证多个规则共用同一组前置/落地时仍
+						-- 稳定指向落地节点，最终出口 IP 仍是落地节点。
+						local chained_tag = outbound.tag .. " -> " .. to_outbound.tag
+						local chained_exists = false
+						for _, _outbound in ipairs(outbounds_table) do
+							if _outbound.tag == chained_tag then
+								chained_exists = true
+								break
+							end
 						end
-						table.insert(outbounds_table, to_outbound)
-						default_outTag = to_outbound.tag
+						if not chained_exists then
+							to_outbound.tag = chained_tag
+							if to_node.type == "sing-box" then
+								to_outbound.detour = outbound.tag
+							end
+							table.insert(outbounds_table, to_outbound)
+						end
+						default_outTag = chained_tag
 					end
 				end
 			end
@@ -1421,7 +1436,13 @@ function gen_config(var)
 				local outbound, exist
 				if node.protocol == "_urltest" then
 					outbound, exist = gen_urltest_outbound(node)
-					if exist then
+					-- 不修复时：已有 URLTest outbound 会在这里直接返回
+					-- urltest-*，导致 Netflix 等分流规则停在 URLTest 选中
+					-- 的前置节点，绕过后续落地节点。
+					-- 修复逻辑：只有普通复用 URLTest 时才早退；若当前节点
+					-- 携带 chain_proxy，则继续进入 set_outbound_detour()
+					-- 生成“URLTest -> 落地节点”的链式 outbound。
+					if exist and not node.chain_proxy then
 						return outbound.tag
 					end
 				elseif node.protocol == "_iface" then
@@ -1449,7 +1470,11 @@ function gen_config(var)
 				end
 				if outbound then
 					local default_outbound_tag, last_insert_outbound = set_outbound_detour(node, outbound, outbounds)
-					table.insert(outbounds, outbound)
+					-- 预期结果：已存在的 URLTest 本体只复用，不重复插入；
+					-- 需要链式代理时，仅新增/复用指向落地节点的派生 outbound。
+					if not exist then
+						table.insert(outbounds, outbound)
+					end
 					if last_insert_outbound then
 						table.insert(outbounds, last_insert_outbound)
 					end
