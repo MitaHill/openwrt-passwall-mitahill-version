@@ -570,6 +570,13 @@ table td, .table .td {
 				dom.innerText = text;
 				dom.style.color = color;
 				dom.dataset.busy = "0";
+				if (text != "<%:Error%>") {
+					localStorage.setItem("urltest:" + cbi_id, JSON.stringify({
+						timestamp: Date.now(),
+						savetime: 60 * 1000,
+						value: result.use_time && result.use_time.trim() != "" ? parseInt(result.use_time) : ""
+					}));
+				}
 			}
 		);
 	}
@@ -611,7 +618,105 @@ table td, .table .td {
 
 	/* 自动Ping */
 	function pingAllNodes() {
-		if (auto_detection_time == "icmp" || auto_detection_time == "tcping") {
+		if (auto_detection_time == "urltest") {
+			const now = Date.now();
+			const nodes = [];
+			const urltest_value = document.getElementsByClassName('urltest_value');
+			for (let i = 0; i < urltest_value.length; i++) {
+				const cbi_id = urltest_value[i].getAttribute("cbiid");
+				if (!cbi_id) continue;
+
+				const cacheData = JSON.parse(localStorage.getItem("urltest:" + cbi_id));
+				const a = urltest_value[i].firstElementChild;
+				if (cacheData && cacheData.savetime && (now - cacheData.timestamp) < cacheData.savetime) {
+					let color = "red";
+					let text = "<%:Timeout%>";
+					if (cacheData.value !== "") {
+						if (cacheData.value < 1000)
+							color = "green";
+						else if (cacheData.value < 2000)
+							color = "#fb9a05";
+						text = cacheData.value + " ms";
+					}
+					a.innerText = text;
+					a.style.color = color;
+					a.onclick = function () {
+						urltest_node(cbi_id, this);
+					};
+				} else {
+					localStorage.removeItem("urltest:" + cbi_id);
+					nodes.push({
+						index: i,
+						id: cbi_id
+					});
+				}
+			}
+
+			const _xhr = (index) => {
+				return new Promise((res) => {
+					const dom = nodes[index];
+					if (!dom) {
+						res();
+						return;
+					}
+					ajax.post('<%=api.url("urltest_node")%>', {
+						index: dom.index,
+						id: dom.id
+					},
+					function(x, result) {
+						const a = urltest_value[dom.index].firstElementChild;
+						const cbi_id = urltest_value[dom.index].getAttribute("cbiid");
+						let color = "red";
+						let text = "<%:Timeout%>";
+						let value = "";
+						if (x && x.status == 200 && result.use_time != null && result.use_time.trim() !== "") {
+							value = parseInt(result.use_time);
+							text = value + " ms";
+							if (value < 1000)
+								color = "green";
+							else if (value < 2000)
+								color = "#fb9a05";
+						}
+						a.innerText = text;
+						a.style.color = color;
+						a.onclick = function () {
+							urltest_node(cbi_id, this);
+						};
+						localStorage.setItem("urltest:" + cbi_id, JSON.stringify({
+							timestamp: Date.now(),
+							savetime: 60 * 1000,
+							value: value
+						}));
+						res();
+					},
+					45000,
+					function(x) {
+						const a = urltest_value[dom.index].firstElementChild;
+						const cbi_id = urltest_value[dom.index].getAttribute("cbiid");
+						a.innerText = "<%:Timeout%>";
+						a.style.color = "red";
+						a.onclick = function () {
+							urltest_node(cbi_id, this);
+						};
+						res();
+					});
+				});
+			}
+
+			let task = -1;
+			const thread = () => {
+				task = task + 1;
+				if (nodes[task]) {
+					_xhr(task).then(thread);
+				}
+			}
+			// 不修复时，自动 URLTest 若像 Ping 一样开 20 并发，会同时拉起大量临时 socks 进程。
+			// 修复逻辑：URLTest 复用 PassWall 现有测试接口，但自动模式只开 3 并发。
+			// 预期结果：能自动检测真实 URL 延迟，同时避免低性能路由器被测速任务拖垮。
+			for (let i = 0; i < 3; i++) {
+				thread();
+			}
+		} else if (auto_detection_time == "icmp" || auto_detection_time == "tcping") {
 			const now = Date.now();
 			const nodes = [];
 			const ping_value = document.getElementsByClassName(auto_detection_time == "tcping" ? 'tcping_value' : 'ping_value');
@@ -964,6 +1069,8 @@ table td, .table .td {
 						}
 						if (o["protocol"] && o["protocol"] === '_shunt') {
 							innerHTML = innerHTML.split("{{url_test}}").join('<span class="ping" cbiid="{{id}}">---</span>');
+						} else if (auto_detection_time == "urltest") {
+							innerHTML = innerHTML.split("{{url_test}}").join('<span class="urltest_value" cbiid="{{id}}"><a href="javascript:void(0)" style="color:inherit" title="<%:TLS handshake test, latency for reference only%>">---</a></span>');
 						} else {
 							innerHTML = innerHTML.split("{{url_test}}").join('<span class="ping"><a href="javascript:void(0)" onclick="javascript:urltest_node(\'{{id}}\', this)" title="<%:TLS handshake test, latency for reference only%>"><%:Test%></a></span>');
 						}
