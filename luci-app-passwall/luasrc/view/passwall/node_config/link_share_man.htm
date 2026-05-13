@@ -7,21 +7,23 @@ local map = self.map
 local has_ss = api.is_finded("ss-redir")
 local has_ss_rust = api.is_finded("sslocal")
 local has_singbox = api.finded_com("sing-box")
-local has_xray = api.finded_com("xray")
 local has_hysteria2 = api.finded_com("hysteria")
 
-local ss_type = api.get_core("ss_type", {{has_ss,"shadowsocks-libev"},{has_ss_rust,"shadowsocks-rust"},{has_singbox,"sing-box"},{has_xray,"xray"}})
-local trojan_type = api.get_core("trojan_type", {{has_singbox,"sing-box"},{has_xray,"xray"}})
-local vmess_type = api.get_core("vmess_type", {{has_xray,"xray"},{has_singbox,"sing-box"}})
-local vless_type = api.get_core("vless_type", {{has_xray,"xray"},{has_singbox,"sing-box"}})
-local hysteria2_type = api.get_core("hysteria2_type", {{has_hysteria2,"hysteria2"},{has_singbox,"sing-box"}, {has_xray,"xray"}})
+-- 不修复时：分享链接导入会在前端优先选择或回退到 Xray，导致隐藏 Xray 后页面仍出现 Xray 类型。
+-- 修复逻辑：前端导入核心候选只保留 Sing-Box 等目标路径，Xray 后端仍保留给旧配置兼容。
+-- 预期结果：新增/导入节点不再把 Xray 作为可见目标核心。
+local ss_type = api.get_core("ss_type", {{has_ss,"shadowsocks-libev"},{has_ss_rust,"shadowsocks-rust"},{has_singbox,"sing-box"}})
+local trojan_type = api.get_core("trojan_type", {{has_singbox,"sing-box"}})
+local vmess_type = api.get_core("vmess_type", {{has_singbox,"sing-box"}})
+local vless_type = api.get_core("vless_type", {{has_singbox,"sing-box"}})
+local hysteria2_type = api.get_core("hysteria2_type", {{has_hysteria2,"hysteria2"},{has_singbox,"sing-box"}})
 
 local current_node = map:get(section)
 -%>
 <script src="<%=resource%>/view/<%=appname%>/qrcode.min.js"></script>
 <script type="text/javascript">//<![CDATA[
 	let has_singbox = "<%=has_singbox%>"
-	let has_xray = "<%=has_xray%>"
+	let has_xray = ""
 	let has_hysteria2 = "<%=has_hysteria2%>"
 	let ss_type = "<%=ss_type%>"
 	let trojan_type = "<%=trojan_type%>"
@@ -992,11 +994,7 @@ local current_node = map:get(section)
 			const needUpgrade = ss_type !== "Xray" && ss_type !== "sing-box" &&
 					queryParam.type && queryParam.type !== "tcp" &&
 					queryParam.headerType && queryParam.headerType !== "none";
-			if (has_xray && (ss_type == "xray" || needUpgrade || queryParam.type === "xhttp")) {
-				dom_prefix = "xray_"
-				opt.set('type', "Xray");
-				opt.set(dom_prefix + 'protocol', "shadowsocks");
-			} else if (has_singbox && (ss_type == "sing-box" || needUpgrade)) {
+			if (has_singbox && (ss_type == "sing-box" || needUpgrade || queryParam.type === "xhttp")) {
 				dom_prefix = "singbox_"
 				opt.set('type', "sing-box");
 				opt.set(dom_prefix + 'protocol', "shadowsocks");
@@ -1214,10 +1212,6 @@ local current_node = map:get(section)
 				dom_prefix = "singbox_"
 				opt.set('type', "sing-box");
 				opt.set(dom_prefix + 'protocol', "trojan");
-			} else if (trojan_type == "xray" && has_xray) {
-				dom_prefix = "xray_"
-				opt.set('type', "Xray");
-				opt.set(dom_prefix + 'protocol', "trojan");
 			}
 			var m = parseNodeUrl(ssrurl);
 			var password = m.passwd;
@@ -1331,9 +1325,6 @@ local current_node = map:get(section)
 			if (vmess_type == "sing-box" && has_singbox) {
 				dom_prefix = "singbox_"
 				opt.set('type', "sing-box");
-			} else if (has_xray) {
-				dom_prefix = "xray_"
-				opt.set('type', "Xray");
 			}
 			opt.set(dom_prefix + 'protocol', "vmess");
 			var url0, param = "";
@@ -1430,9 +1421,6 @@ local current_node = map:get(section)
 			if (vless_type == "sing-box" && has_singbox) {
 				dom_prefix = "singbox_"
 				opt.set('type', "sing-box");
-			} else if (has_xray) {
-				dom_prefix = "xray_"
-				opt.set('type', "Xray");
 			}
 			
 			var m = parseNodeUrl(ssrurl);
@@ -1454,10 +1442,6 @@ local current_node = map:get(section)
 			}
 
 			queryParam.type = queryParam.type.toLowerCase();
-			if (["xhttp", "kcp", "mkcp"].includes(queryParam.type) && vless_type !== "xray" && has_xray) {
-				dom_prefix = "xray_"
-				opt.set('type', "Xray");
-			}
 			opt.set(dom_prefix + 'protocol', "vless");
 			opt.set(dom_prefix + 'uuid', password);
 			opt.set(dom_prefix + 'address', unbracketIP(m.hostname));
@@ -1602,10 +1586,9 @@ local current_node = map:get(section)
 					queryParam[decodeURIComponent(params[0])] = decodeURIComponent(params[1] || '');
 				}
 			}
-			if ((hysteria2_type == "sing-box" && has_singbox) || (hysteria2_type == "xray" && has_xray)) {
-				var is_singbox = hysteria2_type == "sing-box" && has_singbox;
-				opt.set('type', is_singbox ? "sing-box" : "Xray");
-				dom_prefix = is_singbox ? "singbox_" : "xray_";
+			if (hysteria2_type == "sing-box" && has_singbox) {
+				opt.set('type', "sing-box");
+				dom_prefix = "singbox_";
 				opt.set(dom_prefix + 'protocol', "hysteria2");
 				opt.set(dom_prefix + 'hysteria2_auth_password', decodeURIComponent(password));
 				if (queryParam["obfs-password"] || queryParam["obfs_password"]) {

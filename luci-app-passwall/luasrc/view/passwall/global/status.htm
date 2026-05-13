@@ -189,6 +189,19 @@ https://github.com/pure-css/pure/blob/master/LICENSE.md
 	  </div>
 	<script>
 		//<![CDATA[
+		// 不修复时：首页运行状态仍显示 HAPROXY 状态块，和前端隐藏传统负载均衡的目标冲突。
+		// 修复逻辑：只在前端隐藏该块，后端 haproxy_status 接口保留给历史配置兼容。
+		// 预期结果：用户首页不再看到 HAProxy 字样，同时不触碰旧状态接口。
+		document.addEventListener("DOMContentLoaded", function () {
+			var status_haproxy = document.getElementById('status_haproxy');
+			if (status_haproxy) {
+				var block = status_haproxy;
+				while (block && !(block.classList && block.classList.contains('check'))) {
+					block = block.parentNode;
+				}
+				if (block) block.style.display = 'none';
+			}
+		});
 		var imgs = document.getElementsByTagName('img');
 		for (var i = 0 ; i < imgs.length; i++) {
 			document.getElementsByTagName('img')[i].setAttribute("oncontextmenu","return false;");
@@ -197,7 +210,6 @@ https://github.com/pure-css/pure/blob/master/LICENSE.md
 		XHR.poll(5, '<%=api.url("index_status")%>', null,
 			function (x, data) {
 				var status_dns = document.getElementById('status_dns');
-				var status_haproxy = document.getElementById('status_haproxy');
 				if (data) {
 					if (true) {
 						var status_tcp_node = document.getElementById('status_tcp_node');
@@ -227,15 +239,6 @@ https://github.com/pure-css/pure/blob/master/LICENSE.md
 						status_dns.innerHTML = 'DNS<br /><span class="green"><%:RUNNING%></span>';
 					} else {
 						status_dns.innerHTML = 'DNS<br /><span class="red"><%:NOT RUNNING%></span>';
-					}
-					if (status_haproxy) {
-						if (data.haproxy_status === "-1") {
-							status_haproxy.innerHTML = 'HAPROXY<br /><span class="red"><%:UNINSTALLED%></span>';
-						} else if (data.haproxy_status === "0") {
-							status_haproxy.innerHTML = 'HAPROXY<br /><span class="green"><%:RUNNING%></span>';
-						} else {
-							status_haproxy.innerHTML = 'HAPROXY<br /><span class="red"><%:NOT RUNNING%></span>';
-						}
 					}
 				}
 			});

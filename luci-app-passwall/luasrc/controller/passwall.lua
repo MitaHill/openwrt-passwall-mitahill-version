@@ -40,9 +40,9 @@ function index()
 	entry({"admin", "services", appname, "node_list"}, cbi(appname .. "/client/node_list"), _("Node List"), 2).dependent = true
 	entry({"admin", "services", appname, "node_subscribe"}, cbi(appname .. "/client/node_subscribe"), _("Node Subscribe"), 3).dependent = true
 	entry({"admin", "services", appname, "other"}, cbi(appname .. "/client/other", {autoapply = true}), _("Other Settings"), 92).leaf = true
-	if api.is_finded("haproxy") then
-		entry({"admin", "services", appname, "haproxy"}, cbi(appname .. "/client/haproxy"), _("Load Balancing"), 93).leaf = true
-	end
+	-- 不修复时：Mitahill 版本仍在前端暴露传统 HAProxy 负载均衡入口，和当前 sing-box/nftables 主路径定位不一致。
+	-- 修复逻辑：仅隐藏 LuCI 菜单入口，后端接口和旧配置兼容逻辑保留，避免一次性删除造成启动脚本牵连。
+	-- 预期结果：用户前端不再看到 HAProxy/传统负载均衡功能，但历史配置不会被主动破坏。
 	entry({"admin", "services", appname, "app_update"}, cbi(appname .. "/client/app_update"), _("App Update"), 95).leaf = true
 	entry({"admin", "services", appname, "rule"}, cbi(appname .. "/client/rule"), _("Rule Manage"), 96).leaf = true
 	entry({"admin", "services", appname, "rule_list"}, cbi(appname .. "/client/rule_list", {autoapply = true}), _("Rule List"), 97).leaf = true

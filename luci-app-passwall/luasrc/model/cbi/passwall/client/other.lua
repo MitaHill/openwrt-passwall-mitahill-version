@@ -115,7 +115,9 @@ end
 ---- Use nftables
 o = s:option(ListValue, "prefer_nft", translate("Prefer firewall tools"))
 o.default = "1"
-o:value("0", "Iptables")
+-- 不修复时：24.10+ 目标环境的前端仍允许选择 Iptables，用户会被引导到旧 fw3 路径。
+-- 修复逻辑：前端只展示 Nftables；后端旧 iptables 脚本保留，不在本次大删除。
+-- 预期结果：新配置不再从页面选择 iptables，Mitahill 前端聚焦 firewall4/nftables。
 o:value("1", "Nftables")
 
 ---- Check the transparent proxy component

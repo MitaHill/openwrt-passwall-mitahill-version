@@ -111,8 +111,13 @@ end
 table.sort(type_table)
 
 for index, value in ipairs(type_table) do
-	local p_func = loadfile(types_dir .. value)
-	setfenv(p_func, getfenv(1))(m, s)
+	-- 不修复时：只要系统安装 Xray，节点编辑页面就会显示 Xray 类型和大量专属字段。
+	-- 修复逻辑：前端跳过 ray.lua，保留后端 util_xray.lua 与依赖，避免影响旧配置和订阅兼容。
+	-- 预期结果：新建/编辑节点时不再展示 Xray 类型，Mitahill 前端聚焦 Sing-Box。
+	if value ~= "ray.lua" then
+		local p_func = loadfile(types_dir .. value)
+		setfenv(p_func, getfenv(1))(m, s)
+	end
 end
 
 local footer = Template(appname .. "/node_config/footer")
