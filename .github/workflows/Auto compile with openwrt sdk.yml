@@ -76,6 +76,14 @@ jobs:
         if: steps.check_version.outputs.has_update == 'true'
         run: |
           echo "![](https://img.shields.io/github/downloads/${{ env.passwall }}/${{steps.check_version.outputs.latest_version}}/total?style=flat-square)" >> release.txt
+          echo "## :warning: 测试版说明 / Beta Notice" >>release.txt
+          echo "" >>release.txt
+          echo "此版本用于验证 Mitahill Version 的前端收敛、Sing-Box 分流 DNS、URLTest 链式代理等改动，不保证稳定性。" >>release.txt
+          echo "This build is a beta release for validating Mitahill Version changes, including UI cleanup, Sing-Box shunt DNS, and URLTest chain handling. Stability is not guaranteed." >>release.txt
+          echo "" >>release.txt
+          echo "从此版本开始，不再编译以 iptables/fw3 为主的旧 OpenWrt 路由器版本；发布产物聚焦 OpenWRT / ImmortalWRT 24.10 及以后版本。" >>release.txt
+          echo "Starting from this build, legacy OpenWrt targets primarily based on iptables/fw3 are no longer compiled. Artifacts focus on OpenWRT / ImmortalWRT 24.10 and later." >>release.txt
+          echo "" >>release.txt
           echo "## :mega: 获取其他软件包 / How to Get Other Packages" >>release.txt
           echo "" >>release.txt
           echo "### 方式 1：添加软件源 / Method 1: Add Software Source" >>release.txt
@@ -124,11 +132,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - url_sdk: https://archive.openwrt.org/releases/21.02.7/targets/x86/64/openwrt-sdk-21.02.7-x86-64_gcc-8.4.0_musl.Linux-x86_64.tar.xz
-            ver: "22.03-"
-
           - url_sdk: https://downloads.openwrt.org/releases/24.10.5/targets/x86/64/openwrt-sdk-24.10.5-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
-            ver: "23.05-24.10"
+            ver: "24.10"
 
           - url_sdk: https://downloads.openwrt.org/snapshots/targets/x86/64/openwrt-sdk-x86-64_gcc-14.3.0_musl.Linux-x86_64.tar.zst
             ver: "25.12+"
