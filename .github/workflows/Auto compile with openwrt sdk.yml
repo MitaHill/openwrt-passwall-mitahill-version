@@ -76,39 +76,21 @@ jobs:
         if: steps.check_version.outputs.has_update == 'true'
         run: |
           echo "![](https://img.shields.io/github/downloads/${{ env.passwall }}/${{steps.check_version.outputs.latest_version}}/total?style=flat-square)" >> release.txt
-          echo "## :warning: 测试版说明 / Beta Notice" >>release.txt
+          if [ "${{ steps.check_version.outputs.prerelease }}" = "true" ]; then
+            echo "## 测试版说明" >>release.txt
+            echo "" >>release.txt
+            echo "此版本为预发布测试版，用于验证 Mitahill Version 的近期改动，不保证稳定性。" >>release.txt
+            echo "" >>release.txt
+          fi
+          echo "## 版本说明" >>release.txt
           echo "" >>release.txt
-          echo "此版本用于验证 Mitahill Version 的前端收敛、Sing-Box 分流 DNS、URLTest 链式代理等改动，不保证稳定性。" >>release.txt
-          echo "This build is a beta release for validating Mitahill Version changes, including UI cleanup, Sing-Box shunt DNS, and URLTest chain handling. Stability is not guaranteed." >>release.txt
+          echo "此版本用于验证 Mitahill Version 的前端收敛、Sing-Box 分流 DNS、URLTest 链式代理等改动。" >>release.txt
           echo "" >>release.txt
           echo "从此版本开始，不再编译以 iptables/fw3 为主的旧 OpenWrt 路由器版本；发布产物聚焦 OpenWRT / ImmortalWRT 24.10 及以后版本。" >>release.txt
-          echo "Starting from this build, legacy OpenWrt targets primarily based on iptables/fw3 are no longer compiled. Artifacts focus on OpenWRT / ImmortalWRT 24.10 and later." >>release.txt
           echo "" >>release.txt
-          echo "## :mega: 获取其他软件包 / How to Get Other Packages" >>release.txt
+          echo "## 下载说明" >>release.txt
           echo "" >>release.txt
-          echo "### 方式 1：添加软件源 / Method 1: Add Software Source" >>release.txt
-          echo " * 请按照 [openwrt-passwall-build](https://github.com/moetayuko/openwrt-passwall-build) 仓库的说明，将其提供的软件源添加到设备中，然后直接使用包管理器安装。" >>release.txt
-          echo "  Follow the instructions in the [openwrt-passwall-build](https://github.com/moetayuko/openwrt-passwall-build) repository to add the provided software source to your device, then install directly using the package manager." >>release.txt
-          echo "" >>release.txt
-          echo "### 方式 2：手动下载并安装 / Method 2: Manual Download and Install" >>release.txt
-          echo "" >>release.txt
-          echo "* 从 [SourceForge](https://sourceforge.net/projects/openwrt-passwall-build/files/) 下载预构建的软件包。" >>release.txt
-          echo "  Download prebuilt packages from [SourceForge](https://sourceforge.net/projects/openwrt-passwall-build/files/)." >>release.txt
-          echo "" >>release.txt
-          echo "* 将文件上传到您的设备，使用 Shell 命令进行安装。" >>release.txt
-          echo "  Upload files to your device, install it with shell command." >>release.txt
-          echo "" >>release.txt
-          echo "ipk" >>release.txt
-          echo "\`\`\`" >>release.txt
-          echo "opkg install /path/to/package.ipk" >>release.txt
-          echo "\`\`\`" >>release.txt
-          echo "apk" >>release.txt
-          echo "\`\`\`" >>release.txt
-          echo "apk add /path/to/package.apk" >>release.txt
-          echo "\`\`\`" >>release.txt
-          echo "" >>release.txt
-          echo ":warning: 请将 /path/to/package 替换为实际下载的软件包路径。" >>release.txt
-          echo "- Replace /path/to/package with the actual path of the downloaded packages." >>release.txt
+          echo "请在本页面的 Assets 中下载与你的系统版本对应的安装包。" >>release.txt
           touch release.txt
 
       - name: Generate new tag & release
