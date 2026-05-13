@@ -43,6 +43,29 @@
 			proxy_tag_dom.classList.remove('hidden');
 		}
 	}
+	function check_dns_options(id) {
+		const dom_id = "cbid.table." + id + ".";
+		const global = document.getElementById(dom_id + "_dns_global");
+		if (!global) return;
+		const hide = global.checked;
+		["_dns_protocol", "_dns_strategy", "_dns_server"].forEach(function(name) {
+			const field = document.getElementById(dom_id + name);
+			const main = document.getElementById(dom_id + name + ".main");
+			const row = (field && field.closest("td")) || (main && main.closest("td")) || main || (field && field.closest(".cbi-value"));
+			if (row) {
+				if (hide) row.classList.add("hidden");
+				else row.classList.remove("hidden");
+			}
+		});
+	}
+	function hide_default_dns_options(id) {
+		const dom_id = "cbid.table." + id + ".";
+		["_dns_global", "_dns_protocol", "_dns_strategy", "_dns_server"].forEach(function(name) {
+			const field = document.getElementById(dom_id + name);
+			const row = field && field.closest("td");
+			if (row) row.classList.add("hidden");
+		});
+	}
 	function refresh_depends() {
 		const table_dom = document.getElementById("cbi-passwall-shunt_option_list");
 		if (table_dom) {
@@ -50,6 +73,7 @@
 			for (let i = 1; i < trs.length;i++) {
 				check_fakedns(i);
 				check_proxy_tag(i);
+				check_dns_options(i);
 			}
 		}
 	}
@@ -65,7 +89,20 @@
 					check_fakedns(i, new_val);
 					check_proxy_tag(i, new_val);
 				});
+				// 不修复时：每条分流规则新增多个 DNS 字段后会全部平铺显示，表格拥挤且默认全局配置也会露出无效选项。
+				// 修复逻辑：勾选“使用全局配置”时隐藏协议、栈类型和服务器字段，只在需要独立 DNS 时展开。
+				// 预期结果：DNS 功能不是半成品，同时分流规则表保持可读。
+				const dnsGlobal = document.getElementById("cbid.table." + i + "._dns_global");
+				if (dnsGlobal) {
+					dnsGlobal.addEventListener("change", function() {
+						check_dns_options(i);
+					});
+				}
 				if (i == trs.length - 1) {
+					// 不修复时：Default 行没有域名匹配条件，显示独立 DNS 会让用户误以为默认兜底 DNS 已被实现。
+					// 修复逻辑：第一版只支持具体分流规则的 DNS 分流，隐藏 Default 行 DNS 控件。
+					// 预期结果：页面只展示可实际生效的 DNS 配置，避免半成品入口。
+					hide_default_dns_options(i);
 					const newArray = window.lv_dropdown_data["cbid.table." + i + "._node"].ungrouped.filter(item => item.key !== "_default");
 					window.lv_dropdown_data["cbid.table." + i + "._node"].ungrouped = newArray
 				}

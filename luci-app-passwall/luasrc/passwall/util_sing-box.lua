@@ -1050,6 +1050,22 @@ function gen_config(var)
 
 	local experimental = nil
 
+	local function parse_dns_host_port(server, default_port)
+		server = api.trim(server or "")
+		if server == "" then return nil, nil end
+		local host, port
+		local ipv6_host, ipv6_port = server:match("^%[(.+)%]:(%d+)$")
+		if ipv6_host then
+			host = ipv6_host
+			port = tonumber(ipv6_port)
+		else
+			host, port = server:match("^([^:]+):(%d+)$")
+			if not host then host = server end
+			port = tonumber(port)
+		end
+		return host, port or default_port
+	end
+
 	function add_rule_set(tab)
 		if tab and next(tab) and tab.tag and not rule_set_table[tab.tag]then
 			rule_set_table[tab.tag] = tab
@@ -1646,8 +1662,16 @@ function gen_config(var)
 							domain_regex = {},
 							rule_set = {},
 							fakedns = nil,
+							custom_dns = nil,
 							invert = e.invert == "1" and true or nil
 						}
+						if node[e[".name"] .. "_dns_global"] == "0" then
+							domain_table.custom_dns = {
+								protocol = node[e[".name"] .. "_dns_protocol"] or "doh",
+								server = node[e[".name"] .. "_dns_server"] or "https://1.1.1.1/dns-query",
+								strategy = node[e[".name"] .. "_dns_strategy"]
+							}
+						end
 						string.gsub(e.domain_list, '[^' .. "\r\n" .. ']+', function(w)
 							if w:find("#") == 1 then return end
 							if w:find("geosite:") == 1 then
@@ -1828,6 +1852,49 @@ function gen_config(var)
 
 		table.insert(dns.servers, remote_server)
 
+		local function build_custom_dns_server(value)
+			if not value or not value.custom_dns then return nil end
+			local cfg = value.custom_dns
+			local server_text = api.trim(cfg.server or "")
+			if server_text == "" then return nil end
+			local tag = "dns_" .. tostring(value.shunt_tag or "rule"):gsub("[^%w_%-]", "_")
+			local server = {
+				tag = tag,
+				domain_resolver = "direct",
+				detour = value.outboundTag
+			}
+			if cfg.protocol == "udp" or cfg.protocol == "tcp" then
+				local host, port = parse_dns_host_port(server_text, 53)
+				if not host then return nil end
+				server.type = cfg.protocol
+				server.server = host
+				server.server_port = port
+			elseif cfg.protocol == "doh" or cfg.protocol == "http3" then
+				local doh = api.parseDoH(server_text)
+				if not doh then return nil end
+				server.type = (cfg.protocol == "http3") and "h3" or "https"
+				server.server = doh.hostname
+				server.server_port = doh.port or 443
+				server.path = doh.pathname or ""
+				if api.datatypes.hostname(doh.hostname) then
+					if doh.hostip then
+						if not hosts_predefined then hosts_predefined = {} end
+						hosts_predefined[doh.hostname] = doh.hostip
+						server.domain_resolver = "hosts"
+					else
+						GLOBAL.DNS_HOSTNAME[doh.hostname] = true
+						server.domain_resolver = "direct"
+					end
+				end
+			else
+				return nil
+			end
+			if api.is_local_ip(server.server) then
+				server.detour = "direct"
+			end
+			return server
+		end
+
 		fakedns_tag = "remote_fakeip"
 		if remote_dns_fake or inner_fakedns == "1" then		
 			table.insert(dns.servers, {
@@ -1931,16 +1998,30 @@ function gen_config(var)
 						disable_cache = false,
 						invert = value.invert,
 					}
+					-- 不修复时：分流规则可以指定不同节点，但 DNS 仍继承全局远程 DNS，流媒体/地区服务可能出现解析出口和流量出口不一致。
+					-- 修复逻辑：当规则关闭“使用全局配置”时，为该规则生成独立 DNS server，并让 DNS detour 跟随该规则 outbound。
+					-- 预期结果：例如 Bilibili -> 越南节点 + 越南 DNS 时，域名解析和实际连接都按同一分流规则执行。
+					local custom_dns_server = value.outboundTag ~= "block" and build_custom_dns_server(value) or nil
+					if custom_dns_server then
+						table.insert(dns.servers, custom_dns_server)
+						dns_rule.server = custom_dns_server.tag
+						if value.custom_dns and value.custom_dns.strategy and value.custom_dns.strategy ~= "" then
+							dns_rule.strategy = value.custom_dns.strategy
+						end
+						if value.outboundTag ~= "block" and value.outboundTag ~= "direct" then
+							dns_rule.rewrite_ttl = 30
+						end
+					end
 					if value.outboundTag == "block" then
 						dns_rule.action = "predefined"
 						dns_rule.rcode = "NOERROR"
 						dns_rule.server = nil
 						dns_rule.disable_cache = nil
 					end
-					if value.outboundTag == "direct" then
+					if value.outboundTag == "direct" and not custom_dns_server then
 						dns_rule.strategy = direct_strategy
 					end
-					if value.outboundTag ~= "block" and value.outboundTag ~= "direct" then
+					if value.outboundTag ~= "block" and value.outboundTag ~= "direct" and not custom_dns_server then
 						dns_rule.server = "remote"
 						dns_rule.rewrite_ttl = 30
 						dns_rule.strategy = remote_strategy

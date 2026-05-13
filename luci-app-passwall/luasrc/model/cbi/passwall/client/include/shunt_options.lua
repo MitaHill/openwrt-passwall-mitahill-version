@@ -100,6 +100,10 @@ m.uci:foreach(appname, "shunt_rules", function(e)
 	e["_node_default"] = ""
 	e["_fakedns_option"] = e[".name"] .. "_fakedns"
 	e["_proxy_tag_option"] = e[".name"] .. "_proxy_tag"
+	e["_dns_global_option"] = e[".name"] .. "_dns_global"
+	e["_dns_protocol_option"] = e[".name"] .. "_dns_protocol"
+	e["_dns_strategy_option"] = e[".name"] .. "_dns_strategy"
+	e["_dns_server_option"] = e[".name"] .. "_dns_server"
 	table.insert(shunt_rules, e)
 end)
 table.insert(shunt_rules, {
@@ -109,6 +113,10 @@ table.insert(shunt_rules, {
 	_node_default = "_direct",
 	_fakedns_option = "default_fakedns",
 	_proxy_tag_option = "default_proxy_tag",
+	_dns_global_option = "default_dns_global",
+	_dns_protocol_option = "default_dns_protocol",
+	_dns_strategy_option = "default_dns_strategy",
+	_dns_server_option = "default_dns_server",
 })
 
 s2 = m:section(Table, shunt_rules, " ")
@@ -169,6 +177,83 @@ proxy_tag_node.write = function(self, section, value)
 end
 proxy_tag_node.remove = function(self, section)
 	return m:del(current_node_id, shunt_rules[section]["_proxy_tag_option"])
+end
+
+-- 不修复时：所有分流规则只能共享全局远程 DNS，规则流量已走指定节点时，DNS 仍可能从全局出口解析。
+-- 修复逻辑：在“规则/节点/FakeDNS/前置代理”同一表格内新增 DNS 列，字段保存在当前分流节点下，不改全局规则定义。
+-- 预期结果：每条 Sing-Box 分流规则可继续使用全局 DNS，也可独立指定 DNS 协议、解析栈和服务器。
+dns_global = s2:option(Flag, "_dns_global", "DNS<br />" .. translate("Use global config"))
+dns_global.default = "1"
+dns_global.rmempty = false
+dns_global.cfgvalue = function(self, section)
+	return m:get(current_node_id, shunt_rules[section]["_dns_global_option"]) or "1"
+end
+dns_global.write = function(self, section, value)
+	return m:set(current_node_id, shunt_rules[section]["_dns_global_option"], value)
+end
+dns_global.remove = function(self, section)
+	return m:del(current_node_id, shunt_rules[section]["_dns_global_option"])
+end
+
+dns_protocol = s2:option(ListValue, "_dns_protocol", translate("DNS Request protocol"))
+dns_protocol:value("udp", "UDP")
+dns_protocol:value("tcp", "TCP")
+dns_protocol:value("doh", "DoH")
+dns_protocol:value("http3", "HTTP3(DoH3)")
+dns_protocol.default = "doh"
+dns_protocol.cfgvalue = function(self, section)
+	return m:get(current_node_id, shunt_rules[section]["_dns_protocol_option"]) or "doh"
+end
+dns_protocol.write = function(self, section, value)
+	return m:set(current_node_id, shunt_rules[section]["_dns_protocol_option"], value)
+end
+dns_protocol.remove = function(self, section)
+	return m:del(current_node_id, shunt_rules[section]["_dns_protocol_option"])
+end
+
+dns_strategy = s2:option(ListValue, "_dns_strategy", translate("DNS stack filter"))
+dns_strategy:value("", translate("All"))
+dns_strategy:value("ipv4_only", translate("IPv4 Only"))
+dns_strategy:value("ipv6_only", translate("IPv6 Only"))
+dns_strategy.default = ""
+dns_strategy.cfgvalue = function(self, section)
+	return m:get(current_node_id, shunt_rules[section]["_dns_strategy_option"]) or ""
+end
+dns_strategy.write = function(self, section, value)
+	if value and value ~= "" then
+		return m:set(current_node_id, shunt_rules[section]["_dns_strategy_option"], value)
+	end
+	return m:del(current_node_id, shunt_rules[section]["_dns_strategy_option"])
+end
+dns_strategy.remove = function(self, section)
+	return m:del(current_node_id, shunt_rules[section]["_dns_strategy_option"])
+end
+
+dns_server = s2:option(Value, "_dns_server", translate("DNS Server"))
+dns_server:value("1.1.1.1", "1.1.1.1 (CloudFlare)")
+dns_server:value("1.1.1.2", "1.1.1.2 (CloudFlare-Security)")
+dns_server:value("8.8.4.4", "8.8.4.4 (Google)")
+dns_server:value("8.8.8.8", "8.8.8.8 (Google)")
+dns_server:value("9.9.9.9", "9.9.9.9 (Quad9)")
+dns_server:value("149.112.112.112", "149.112.112.112 (Quad9)")
+dns_server:value("208.67.222.222", "208.67.222.222 (OpenDNS)")
+dns_server:value("https://1.1.1.1/dns-query", "DoH 1.1.1.1 (CloudFlare)")
+dns_server:value("https://8.8.8.8/dns-query", "DoH 8.8.8.8 (Google)")
+dns_server:value("https://9.9.9.9/dns-query", "DoH 9.9.9.9 (Quad9)")
+dns_server:value("https://dns.adguard.com/dns-query,94.140.14.14", "DoH AdGuard")
+dns_server.default = "https://1.1.1.1/dns-query"
+dns_server.cfgvalue = function(self, section)
+	return m:get(current_node_id, shunt_rules[section]["_dns_server_option"]) or "https://1.1.1.1/dns-query"
+end
+dns_server.write = function(self, section, value)
+	value = api.trim(value or "")
+	if value ~= "" then
+		return m:set(current_node_id, shunt_rules[section]["_dns_server_option"], value)
+	end
+	return m:del(current_node_id, shunt_rules[section]["_dns_server_option"])
+end
+dns_server.remove = function(self, section)
+	return m:del(current_node_id, shunt_rules[section]["_dns_server_option"])
 end
 
 for k1, v1 in pairs(node_list) do

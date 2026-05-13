@@ -742,6 +742,15 @@ msgstr "IP出口"
 msgid "Click to refresh"
 msgstr "点击刷新"
 
+msgid "DNS Request protocol"
+msgstr "DNS 请求协议"
+
+msgid "DNS stack filter"
+msgstr "过滤栈类型"
+
+msgid "DNS Server"
+msgstr "DNS 服务器"
+
 msgid "URL Test Address"
 msgstr "URL 测试地址"
 
