@@ -19,6 +19,9 @@ o:value("urltest", "URL Test")
 o = s:option(Flag, "show_node_info", translate("Show server address and port"))
 o.default = "0"
 
+o = s:option(Flag, "show_node_outbound_ip", translate("Show IP outlet"))
+o.default = "0"
+
 o = s:option(Value, "url_test_url", translate("URL Test Address"))
 o:value("https://cp.cloudflare.com/", "Cloudflare")
 o:value("https://www.gstatic.com/generate_204", "Gstatic")

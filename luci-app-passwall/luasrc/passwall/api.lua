@@ -1251,7 +1251,10 @@ function get_version()
 end
 
 function to_check_self()
-	local url = "https://raw.githubusercontent.com/Openwrt-Passwall/openwrt-passwall/main/luci-app-passwall/Makefile"
+	-- 不修复时：PassWall 版本检测仍读取上游仓库，Mitahill Version 用户会看到与本分支无关的版本状态。
+	-- 修复逻辑：仅把自身版本检测的 Makefile 来源切换到 MitaHill/openwrt-passwall-mitahill-version，继续解析远端 PKG_VERSION。
+	-- 预期结果：检查更新跟随 Mitahill 仓库当前 main 分支；仓库动态更新 PKG_VERSION 后，页面下次检测即可得到新版本。
+	local url = "https://raw.githubusercontent.com/MitaHill/openwrt-passwall-mitahill-version/main/luci-app-passwall/Makefile"
 	local tmp_file = "/tmp/passwall_makefile"
 	local return_code, result = curl_auto(url, tmp_file, curl_args)
 	result = return_code == 0
