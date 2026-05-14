@@ -743,14 +743,25 @@ table td, .table .td {
 
 	/* 自动Ping */
 	function pingAllNodes() {
-		if (auto_detection_time == "urltest") {
+		const run_tasks = function(nodes, xhr_func, concurrency) {
+			let task = -1;
+			const thread = () => {
+				task = task + 1;
+				if (nodes[task]) {
+					xhr_func(task).then(thread);
+				}
+			}
+			for (let i = 0; i < concurrency; i++) {
+				thread();
+			}
+		}
+		if (auto_detection_time == "urltest" || auto_detection_time == "all") {
 			const now = Date.now();
 			const nodes = [];
 			const urltest_value = document.getElementsByClassName('urltest_value');
 			for (let i = 0; i < urltest_value.length; i++) {
 				const cbi_id = urltest_value[i].getAttribute("cbiid");
 				if (!cbi_id) continue;
-
 				const cacheData = JSON.parse(localStorage.getItem("urltest:" + cbi_id));
 				const a = urltest_value[i].firstElementChild;
 				if (cacheData && cacheData.savetime && (now - cacheData.timestamp) < cacheData.savetime) {
@@ -770,13 +781,9 @@ table td, .table .td {
 					};
 				} else {
 					localStorage.removeItem("urltest:" + cbi_id);
-					nodes.push({
-						index: i,
-						id: cbi_id
-					});
+					nodes.push({ index: i, id: cbi_id });
 				}
 			}
-
 			const _xhr = (index) => {
 				return new Promise((res) => {
 					const dom = nodes[index];
@@ -787,8 +794,7 @@ table td, .table .td {
 					ajax.post('<%=api.url("urltest_node")%>', {
 						index: dom.index,
 						id: dom.id
-					},
-					function(x, result) {
+					}, function(x, result) {
 						const a = urltest_value[dom.index].firstElementChild;
 						const cbi_id = urltest_value[dom.index].getAttribute("cbiid");
 						let color = "red";
@@ -813,9 +819,7 @@ table td, .table .td {
 							value: value
 						}));
 						res();
-					},
-					45000,
-					function(x) {
+					}, 45000, function() {
 						const a = urltest_value[dom.index].firstElementChild;
 						const cbi_id = urltest_value[dom.index].getAttribute("cbiid");
 						a.innerText = "<%:Timeout%>";
@@ -827,134 +831,117 @@ table td, .table .td {
 					});
 				});
 			}
-
-			let task = -1;
-			const thread = () => {
-				task = task + 1;
-				if (nodes[task]) {
-					_xhr(task).then(thread);
-				}
-			}
-			// 不修复时，自动 URLTest 若像 Ping 一样开 20 并发，会同时拉起大量临时 socks 进程。
-			// 修复逻辑：URLTest 复用 PassWall 现有测试接口，但自动模式只开 3 并发。
-			// 预期结果：能自动检测真实 URL 延迟，同时避免低性能路由器被测速任务拖垮。
-			for (let i = 0; i < 3; i++) {
-				thread();
-			}
-		} else if (auto_detection_time == "icmp" || auto_detection_time == "tcping") {
+			// URLTest 自动模式限制为 2 并发。
+			run_tasks(nodes, _xhr, 2);
+		}
+		if (auto_detection_time == "icmp" || auto_detection_time == "tcping" || auto_detection_time == "all") {
 			const now = Date.now();
-			const nodes = [];
-			const ping_value = document.getElementsByClassName(auto_detection_time == "tcping" ? 'tcping_value' : 'ping_value');
-			for (let i = 0; i < ping_value.length; i++) {
-				const cbi_id = ping_value[i].getAttribute("cbiid");
-				const full = get_address_full(cbi_id);
-				if ((auto_detection_time == "icmp" && full.address != "" ) || (auto_detection_time == "tcping" && full.address != "" && full.port != "")) {
-					let flag = false;
-					// Merge duplicates
-					for (let j = 0; j < nodes.length; j++) {
-						if (nodes[j].address == full.address && nodes[j].port == full.port) {
-							nodes[j].indexs = nodes[j].indexs + "," + i;
-							flag = true;
-							break;
+			const ping_jobs = [];
+			if (auto_detection_time == "icmp" || auto_detection_time == "all") {
+				ping_jobs.push({ type: "icmp", doms: document.getElementsByClassName('ping_value') });
+			}
+			if (auto_detection_time == "tcping" || auto_detection_time == "all") {
+				ping_jobs.push({ type: "tcping", doms: document.getElementsByClassName('tcping_value') });
+			}
+			for (let pj = 0; pj < ping_jobs.length; pj++) {
+				const ping_value = ping_jobs[pj].doms;
+				const nodes = [];
+				for (let i = 0; i < ping_value.length; i++) {
+					const cbi_id = ping_value[i].getAttribute("cbiid");
+					const full = get_address_full(cbi_id);
+					if ((ping_jobs[pj].type == "icmp" && full.address != "") || (ping_jobs[pj].type == "tcping" && full.address != "" && full.port != "")) {
+						let flag = false;
+						for (let j = 0; j < nodes.length; j++) {
+							if (nodes[j].address == full.address && nodes[j].port == full.port) {
+								nodes[j].indexs = nodes[j].indexs + "," + i;
+								flag = true;
+								break;
+							}
+						}
+						if (flag) continue;
+						const cacheData = JSON.parse(localStorage.getItem(ping_jobs[pj].type + ":" + full.address + ":" + full.port));
+						if (cacheData && cacheData.savetime && (now - cacheData.timestamp) < cacheData.savetime) {
+							const a = ping_value[i].firstElementChild;
+							let color = "red";
+							if (cacheData.value < 100)
+								color = "green";
+							else if (cacheData.value < 200)
+								color = "#fb9a05";
+							a.innerText = cacheData.value + " ms";
+							a.style.color = color;
+							a.onclick = function () {
+								ping_node(cbi_id, this, ping_jobs[pj].type);
+							};
+						} else {
+							localStorage.removeItem(ping_jobs[pj].type + ":" + full.address + ":" + full.port);
+							nodes.push({
+								indexs: i + "",
+								type: ping_jobs[pj].type,
+								address: full.address,
+								port: full.port
+							});
 						}
 					}
-					if (flag)
-						continue;
-
-					const cacheData = JSON.parse(localStorage.getItem(auto_detection_time + ":" + full.address + ":" + full.port));
-					if (cacheData && cacheData.savetime && (now - cacheData.timestamp) < cacheData.savetime) {
-						const a = ping_value[i].firstElementChild;
-						let color = "red";
-						if (cacheData.value < 100)
-							color = "green";
-						else if (cacheData.value < 200)
-							color = "#fb9a05";
-						a.innerText = cacheData.value + " ms";
-						a.style.color = color;
-						a.onclick = function () {
-							ping_node(cbi_id, this, auto_detection_time);
-						};
-					} else {
-						localStorage.removeItem(auto_detection_time + ":" + full.address + ":" + full.port);
-						nodes.push({
-							indexs: i + "",
-							address: full.address,
-							port: full.port
-						});
-					}
 				}
-			}
-
-			const _xhr = (index) => {
-				return new Promise((res) => {
-					const dom = nodes[index];
-					if (!dom) res()
-					ajax.post('<%=api.url("ping_node")%>', {
-						index: dom.indexs,
-						address: dom.address,
-						port: dom.port,
-						type: auto_detection_time
-					},
-					function(x, result) {
-						if (x && x.status == 200) {
+				const _xhr = (index) => {
+					return new Promise((res) => {
+						const dom = nodes[index];
+						if (!dom) {
+							res();
+							return;
+						}
+						ajax.post('<%=api.url("ping_node")%>', {
+							index: dom.indexs,
+							address: dom.address,
+							port: dom.port,
+							type: dom.type
+						}, function(x, result) {
+							if (x && x.status == 200) {
+								let strs = dom.indexs.split(",");
+								for (let i = 0; i < strs.length; i++) {
+									const a = ping_value[strs[i]].firstElementChild;
+									const cbi_id = ping_value[strs[i]].getAttribute("cbiid");
+									let color = "red";
+									let text = "<%:Timeout%>";
+									if (result.ping !== null && result.ping.trim() !== "") {
+										let ping = parseInt(result.ping);
+										localStorage.setItem(ping_jobs[pj].type + ":" + dom.address + ":" + dom.port, JSON.stringify({
+											dom_id: strs[i],
+											timestamp: Date.now(),
+											savetime: 60 * 1000,
+											value: ping
+										}));
+										text = result.ping + " ms";
+										if (ping < 100)
+											color = "green";
+										else if (ping < 200)
+											color = "#fb9a05";
+									}
+									a.innerText = text;
+									a.style.color = color;
+									a.onclick = function () {
+										ping_node(cbi_id, this, dom.type);
+									};
+								}
+							}
+							res();
+						}, 5000, function() {
 							let strs = dom.indexs.split(",");
 							for (let i = 0; i < strs.length; i++) {
 								const a = ping_value[strs[i]].firstElementChild;
 								const cbi_id = ping_value[strs[i]].getAttribute("cbiid");
-								let color = "red";
-								let text = "<%:Timeout%>";
-								if (result.ping !== null && result.ping.trim() !== "") {
-									let ping = parseInt(result.ping);
-									//save to cache
-									const cache_data = {
-										dom_id: strs[i],
-										timestamp: Date.now(),
-										savetime: 60 * 1000,
-										value: ping
-									};
-									text = result.ping + " ms";
-									localStorage.setItem(auto_detection_time + ":" + dom.address + ":" + dom.port, JSON.stringify(cache_data));
-									if (ping < 100)
-										color = "green";
-									else if (ping < 200)
-										color = "#fb9a05";
-								}
-								a.innerText = text;
-								a.style.color = color;
+								a.innerText = "<%:Timeout%>";
+								a.style.color = "red";
 								a.onclick = function () {
-									ping_node(cbi_id, this, auto_detection_time);
+									ping_node(cbi_id, this, dom.type);
 								};
 							}
-						}
-						res();
-					},
-					5000,
-					function(x) {
-						let strs = dom.indexs.split(",");
-						for (let i = 0; i < strs.length; i++) {
-							const a = ping_value[strs[i]].firstElementChild;
-							const cbi_id = ping_value[strs[i]].getAttribute("cbiid");
-							a.innerText = "<%:Timeout%>";
-							a.style.color = "red";
-							a.onclick = function () {
-								ping_node(cbi_id, this, auto_detection_time);
-							};
-						}
-						res();
-					}
-				);
-				})
-			}
-
-			let task = -1;
-			const thread = () => {
-				task = task + 1
-				if (nodes[task]) {
-					_xhr(task).then(thread);
+							res();
+						});
+					});
 				}
-			}
-			for (let i = 0; i < 20; i++) {
-				thread()
+				// PING/TCP PING 自动检测限制为 2 并发。
+				run_tasks(nodes, _xhr, 2);
 			}
 		}
 	}
@@ -1194,7 +1181,7 @@ table td, .table .td {
 						}
 						if (o["protocol"] && o["protocol"] === '_shunt') {
 							innerHTML = innerHTML.split("{{url_test}}").join('<span class="ping" cbiid="{{id}}">---</span>');
-						} else if (auto_detection_time == "urltest") {
+						} else if (auto_detection_time == "urltest" || auto_detection_time == "all") {
 							innerHTML = innerHTML.split("{{url_test}}").join('<span class="urltest_value" cbiid="{{id}}"><a href="javascript:void(0)" style="color:inherit" title="<%:TLS handshake test, latency for reference only%>">---</a></span>');
 						} else {
 							innerHTML = innerHTML.split("{{url_test}}").join('<span class="ping"><a href="javascript:void(0)" onclick="javascript:urltest_node(\'{{id}}\', this)" title="<%:TLS handshake test, latency for reference only%>"><%:Test%></a></span>');

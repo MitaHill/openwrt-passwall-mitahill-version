@@ -84,6 +84,24 @@ url_test_average() {
 	echo "0:"
 }
 
+fetch_outbound_ip() {
+	local curlx="$1"
+	local family="$2"
+	local try
+	local result=""
+	sleep 1
+	for try in 1 2 3 4 5; do
+		result=$(/usr/bin/curl -x "$curlx" "$family" -fsS --connect-timeout 3 --max-time 6 https://ip.sb 2>/dev/null | tr -d ' \t\r\n')
+		[ -n "$result" ] && {
+			echo "$result"
+			return 0
+		}
+		sleep 1
+	done
+	echo ""
+	return 0
+}
+
 node_to_curlx() {
 	local node_id=$1
 	local _type=$(echo "$(config_n_get "$node_id" type)" | tr 'A-Z' 'a-z')
@@ -132,11 +150,9 @@ outbound_ip_node() {
 	local curlx="$(node_to_curlx "$node_id")"
 	local ipv4 ipv6
 	[ -n "$curlx" ] && {
-		# 不修复时：用户只能看到节点入口地址，无法判断代理链最终从哪个公网 IP 出口。
-		# 修复逻辑：复用节点临时 socks，分别用 curl -4 / curl -6 请求 ip.sb，检测该节点真实 IPv4/IPv6 出口。
-		# 预期结果：支持双栈节点时同时返回 IPv4 和 IPv6；不支持某一地址族时该字段留空，不影响另一地址族显示。
-		ipv4=$(/usr/bin/curl -x "$curlx" -4 -fsS --connect-timeout 3 --max-time 6 https://ip.sb 2>/dev/null | tr -d ' \t\r\n')
-		ipv6=$(/usr/bin/curl -x "$curlx" -6 -fsS --connect-timeout 3 --max-time 6 https://ip.sb 2>/dev/null | tr -d ' \t\r\n')
+		# 先等待后重试，降低临时 socks 冷启动误判。
+		ipv4=$(fetch_outbound_ip "$curlx" -4)
+		ipv6=$(fetch_outbound_ip "$curlx" -6)
 	}
 	url_test_node_cleanup "$node_id"
 	echo "ipv4=${ipv4}"

@@ -56,14 +56,26 @@
 				if (hide) row.classList.add("hidden");
 				else row.classList.remove("hidden");
 			}
+			[field, main].forEach(function(el) {
+				if (el && typeof el.disabled !== "undefined") {
+					el.disabled = hide;
+				}
+			});
 		});
+		// 隐藏时同步禁用 DNS 字段，取消勾选后再恢复。
 	}
 	function hide_default_dns_options(id) {
 		const dom_id = "cbid.table." + id + ".";
 		["_dns_global", "_dns_protocol", "_dns_strategy", "_dns_server"].forEach(function(name) {
 			const field = document.getElementById(dom_id + name);
-			const row = field && field.closest("td");
+			const main = document.getElementById(dom_id + name + ".main");
+			const row = (field && field.closest("td")) || (main && main.closest("td")) || main || (field && field.closest(".cbi-value"));
 			if (row) row.classList.add("hidden");
+			[field, main].forEach(function(el) {
+				if (el && typeof el.disabled !== "undefined") {
+					el.disabled = true;
+				}
+			});
 		});
 	}
 	function refresh_depends() {
