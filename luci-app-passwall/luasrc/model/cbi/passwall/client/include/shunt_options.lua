@@ -1,4 +1,5 @@
 local m, s, data = ...
+local http = require "luci.http"
 
 if not data.node_id or not data.node then
 	return
@@ -179,84 +180,61 @@ proxy_tag_node.remove = function(self, section)
 	return m:del(current_node_id, shunt_rules[section]["_proxy_tag_option"])
 end
 
--- 不修复时：所有分流规则只能共享全局远程 DNS，规则流量已走指定节点时，DNS 仍可能从全局出口解析。
--- 修复逻辑：在“规则/节点/FakeDNS/前置代理”同一表格内新增 DNS 列，字段保存在当前分流节点下，不改全局规则定义。
--- 预期结果：每条 Sing-Box 分流规则可继续使用全局 DNS，也可独立指定 DNS 协议、解析栈和服务器。
-dns_global = s2:option(Flag, "_dns_global", "DNS<br />" .. translate("Use global config"))
-dns_global.default = "1"
-dns_global.rmempty = false
-dns_global.cfgvalue = function(self, section)
-	return m:get(current_node_id, shunt_rules[section]["_dns_global_option"]) or "1"
-end
-dns_global.write = function(self, section, value)
-	return m:set(current_node_id, shunt_rules[section]["_dns_global_option"], value)
-end
-dns_global.remove = function(self, section)
-	return m:del(current_node_id, shunt_rules[section]["_dns_global_option"])
+local function html_attr(value)
+	return tostring(value or ""):gsub("&", "&amp;"):gsub('"', "&quot;"):gsub("<", "&lt;"):gsub(">", "&gt;")
 end
 
-dns_protocol = s2:option(ListValue, "_dns_protocol", translate("DNS Request protocol"))
-dns_protocol:depends("_dns_global", "0")
-dns_protocol:value("udp", "UDP")
-dns_protocol:value("tcp", "TCP")
-dns_protocol:value("doh", "DoH")
-dns_protocol:value("http3", "HTTP3(DoH3)")
-dns_protocol.default = "doh"
-dns_protocol.cfgvalue = function(self, section)
-	return m:get(current_node_id, shunt_rules[section]["_dns_protocol_option"]) or "doh"
+dns_button = s2:option(DummyValue, "_dns", "DNS")
+dns_button.rawhtml = true
+dns_button.formvalue = function(self, section)
+	return http.formvalue("cbid.table." .. section .. "._dns")
 end
-dns_protocol.write = function(self, section, value)
-	return m:set(current_node_id, shunt_rules[section]["_dns_protocol_option"], value)
-end
-dns_protocol.remove = function(self, section)
-	return m:del(current_node_id, shunt_rules[section]["_dns_protocol_option"])
-end
-
-dns_strategy = s2:option(ListValue, "_dns_strategy", translate("DNS stack filter"))
-dns_strategy:depends("_dns_global", "0")
-dns_strategy:value("", translate("All"))
-dns_strategy:value("ipv4_only", translate("IPv4 Only"))
-dns_strategy:value("ipv6_only", translate("IPv6 Only"))
-dns_strategy.default = ""
-dns_strategy.cfgvalue = function(self, section)
-	return m:get(current_node_id, shunt_rules[section]["_dns_strategy_option"]) or ""
-end
-dns_strategy.write = function(self, section, value)
-	if value and value ~= "" then
-		return m:set(current_node_id, shunt_rules[section]["_dns_strategy_option"], value)
+dns_button.cfgvalue = function(self, section)
+	local rule = shunt_rules[section]
+	local global = m:get(current_node_id, rule["_dns_global_option"]) or "1"
+	local protocol = m:get(current_node_id, rule["_dns_protocol_option"]) or "doh"
+	local strategy = m:get(current_node_id, rule["_dns_strategy_option"]) or ""
+	local server = m:get(current_node_id, rule["_dns_server_option"]) or "https://1.1.1.1/dns-query"
+	local text = translate("Use global config")
+	if global == "0" then
+		local strategy_text = strategy == "ipv4_only" and translate("IPv4 Only") or strategy == "ipv6_only" and translate("IPv6 Only") or translate("All")
+		text = string.format("%s: %s / %s", translate("Custom"), protocol:upper(), strategy_text)
 	end
-	return m:del(current_node_id, shunt_rules[section]["_dns_strategy_option"])
+	return string.format(
+		'<input type="button" class="btn cbi-button cbi-button-edit shunt-dns-edit" value="%s" data-section="%s" data-global="%s" data-protocol="%s" data-strategy="%s" data-server="%s" />',
+		html_attr(text),
+		html_attr(section),
+		html_attr(global),
+		html_attr(protocol),
+		html_attr(strategy),
+		html_attr(server)
+	)
 end
-dns_strategy.remove = function(self, section)
-	return m:del(current_node_id, shunt_rules[section]["_dns_strategy_option"])
-end
-
-dns_server = s2:option(Value, "_dns_server", translate("DNS Server"))
-dns_server:depends("_dns_global", "0")
-dns_server:value("1.1.1.1", "1.1.1.1 (CloudFlare)")
-dns_server:value("1.1.1.2", "1.1.1.2 (CloudFlare-Security)")
-dns_server:value("8.8.4.4", "8.8.4.4 (Google)")
-dns_server:value("8.8.8.8", "8.8.8.8 (Google)")
-dns_server:value("9.9.9.9", "9.9.9.9 (Quad9)")
-dns_server:value("149.112.112.112", "149.112.112.112 (Quad9)")
-dns_server:value("208.67.222.222", "208.67.222.222 (OpenDNS)")
-dns_server:value("https://1.1.1.1/dns-query", "DoH 1.1.1.1 (CloudFlare)")
-dns_server:value("https://8.8.8.8/dns-query", "DoH 8.8.8.8 (Google)")
-dns_server:value("https://9.9.9.9/dns-query", "DoH 9.9.9.9 (Quad9)")
-dns_server:value("https://dns.adguard.com/dns-query,94.140.14.14", "DoH AdGuard")
-dns_server.default = "https://1.1.1.1/dns-query"
-dns_server.cfgvalue = function(self, section)
-	return m:get(current_node_id, shunt_rules[section]["_dns_server_option"]) or "https://1.1.1.1/dns-query"
-end
-dns_server.write = function(self, section, value)
-	value = api.trim(value or "")
-	if value ~= "" then
-		return m:set(current_node_id, shunt_rules[section]["_dns_server_option"], value)
+dns_button.write = function(self, section)
+	local prefix = "cbid.table." .. section .. "."
+	local global = http.formvalue(prefix .. "_dns_global") or "1"
+	local protocol = http.formvalue(prefix .. "_dns_protocol") or "doh"
+	local strategy = http.formvalue(prefix .. "_dns_strategy") or ""
+	local server = api.trim(http.formvalue(prefix .. "_dns_server") or "")
+	local rule = shunt_rules[section]
+	m:set(current_node_id, rule["_dns_global_option"], global == "0" and "0" or "1")
+	if global == "0" then
+		m:set(current_node_id, rule["_dns_protocol_option"], protocol)
+		if strategy ~= "" then
+			m:set(current_node_id, rule["_dns_strategy_option"], strategy)
+		else
+			m:del(current_node_id, rule["_dns_strategy_option"])
+		end
+		if server ~= "" then
+			m:set(current_node_id, rule["_dns_server_option"], server)
+		else
+			m:del(current_node_id, rule["_dns_server_option"])
+		end
+	else
+		m:del(current_node_id, rule["_dns_protocol_option"])
+		m:del(current_node_id, rule["_dns_strategy_option"])
+		m:del(current_node_id, rule["_dns_server_option"])
 	end
-	return m:del(current_node_id, shunt_rules[section]["_dns_server_option"])
-end
-dns_server.remove = function(self, section)
-	return m:del(current_node_id, shunt_rules[section]["_dns_server_option"])
 end
 
 for k1, v1 in pairs(node_list) do

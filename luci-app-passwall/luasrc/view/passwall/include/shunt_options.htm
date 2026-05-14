@@ -3,10 +3,170 @@
 	display: none !important;
 	visibility: hidden !important;
 }
+#shunt-dns-modal-mask {
+	display: none;
+	position: fixed;
+	z-index: 9998;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	background: rgba(0, 0, 0, 0.45);
+}
+#shunt-dns-modal {
+	display: none;
+	position: fixed;
+	z-index: 9999;
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	width: min(560px, calc(100% - 32px));
+	background: var(--background-color-high, #fff);
+	border-radius: 6px;
+	box-shadow: 0 8px 30px rgba(0, 0, 0, 0.28);
+	padding: 18px;
+}
+#shunt-dns-modal .dns-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin: 12px 0;
+}
+#shunt-dns-modal .dns-row label {
+	min-width: 130px;
+}
+#shunt-dns-modal select,
+#shunt-dns-modal input[type="text"] {
+	flex: 1;
+	min-width: 0;
+}
+#shunt-dns-modal .dns-tip {
+	color: #666;
+	font-size: 12px;
+	margin-top: 10px;
+}
+#shunt-dns-modal .dns-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 16px;
+}
 </style>
+<div id="shunt-dns-modal-mask"></div>
+<div id="shunt-dns-modal">
+	<h3><%:DNS%></h3>
+	<input type="hidden" id="shunt-dns-section" />
+	<div class="dns-row">
+		<label><%:Use global config%></label>
+		<input type="checkbox" id="shunt-dns-global" />
+	</div>
+	<div id="shunt-dns-custom">
+		<div class="dns-row">
+			<label><%:DNS Request protocol%></label>
+			<select id="shunt-dns-protocol">
+				<option value="udp">UDP</option>
+				<option value="tcp">TCP</option>
+				<option value="doh">DoH</option>
+				<option value="http3">HTTP3(DoH3)</option>
+			</select>
+		</div>
+		<div class="dns-row">
+			<label><%:DNS response%></label>
+			<select id="shunt-dns-strategy">
+				<option value=""><%:All%></option>
+				<option value="ipv4_only"><%:IPv4 Only%></option>
+				<option value="ipv6_only"><%:IPv6 Only%></option>
+			</select>
+		</div>
+		<div class="dns-row">
+			<label><%:DNS Server%></label>
+			<input type="text" id="shunt-dns-server" list="shunt-dns-server-list" />
+			<datalist id="shunt-dns-server-list">
+				<option value="1.1.1.1">1.1.1.1 (CloudFlare)</option>
+				<option value="1.1.1.2">1.1.1.2 (CloudFlare-Security)</option>
+				<option value="8.8.4.4">8.8.4.4 (Google)</option>
+				<option value="8.8.8.8">8.8.8.8 (Google)</option>
+				<option value="9.9.9.9">9.9.9.9 (Quad9)</option>
+				<option value="149.112.112.112">149.112.112.112 (Quad9)</option>
+				<option value="208.67.222.222">208.67.222.222 (OpenDNS)</option>
+				<option value="https://1.1.1.1/dns-query">DoH 1.1.1.1 (CloudFlare)</option>
+				<option value="https://8.8.8.8/dns-query">DoH 8.8.8.8 (Google)</option>
+				<option value="https://9.9.9.9/dns-query">DoH 9.9.9.9 (Quad9)</option>
+				<option value="https://dns.adguard.com/dns-query,94.140.14.14">DoH AdGuard</option>
+			</datalist>
+		</div>
+	</div>
+	<div class="dns-tip"><%:When global config is enabled, this rule will not use custom DNS parameters.%></div>
+	<div class="dns-actions">
+		<input type="button" class="btn cbi-button cbi-button-remove" id="shunt-dns-cancel" value="<%:Close%>" />
+		<input type="button" class="btn cbi-button cbi-button-apply" id="shunt-dns-save" value="<%:Save%>" />
+	</div>
+</div>
 <script type="text/javascript">
 	//<![CDATA[
 	const normal_list = JSON.parse('<%=self.normal_list%>');
+	function shunt_dns_field(section, name) {
+		return "cbid.table." + section + "._" + name;
+	}
+	function ensure_hidden_field(section, name, value) {
+		let id = shunt_dns_field(section, name);
+		let input = document.getElementById(id);
+		if (!input) {
+			input = document.createElement("input");
+			input.type = "hidden";
+			input.id = id;
+			input.name = id;
+			const form = document.querySelector("form");
+			(form || document.body).appendChild(input);
+		}
+		input.value = value;
+	}
+	function update_dns_button(btn, global, protocol, strategy, server) {
+		btn.dataset.global = global;
+		btn.dataset.protocol = protocol;
+		btn.dataset.strategy = strategy;
+		btn.dataset.server = server;
+		if (global == "0") {
+			let strategyText = strategy == "ipv4_only" ? "<%:IPv4 Only%>" : strategy == "ipv6_only" ? "<%:IPv6 Only%>" : "<%:All%>";
+			btn.value = "<%:Custom%>: " + protocol.toUpperCase() + " / " + strategyText;
+		} else {
+			btn.value = "<%:Use global config%>";
+		}
+	}
+	function toggle_dns_custom() {
+		const useGlobal = document.getElementById("shunt-dns-global").checked;
+		document.getElementById("shunt-dns-custom").classList.toggle("hidden", useGlobal);
+	}
+	function close_dns_modal() {
+		document.getElementById("shunt-dns-modal").style.display = "none";
+		document.getElementById("shunt-dns-modal-mask").style.display = "none";
+	}
+	function open_dns_modal(btn) {
+		document.getElementById("shunt-dns-section").value = btn.dataset.section || "";
+		document.getElementById("shunt-dns-global").checked = (btn.dataset.global || "1") != "0";
+		document.getElementById("shunt-dns-protocol").value = btn.dataset.protocol || "doh";
+		document.getElementById("shunt-dns-strategy").value = btn.dataset.strategy || "";
+		document.getElementById("shunt-dns-server").value = btn.dataset.server || "https://1.1.1.1/dns-query";
+		toggle_dns_custom();
+		document.getElementById("shunt-dns-modal").style.display = "block";
+		document.getElementById("shunt-dns-modal-mask").style.display = "block";
+	}
+	function save_dns_modal() {
+		const section = document.getElementById("shunt-dns-section").value;
+		const global = document.getElementById("shunt-dns-global").checked ? "1" : "0";
+		const protocol = document.getElementById("shunt-dns-protocol").value || "doh";
+		const strategy = document.getElementById("shunt-dns-strategy").value || "";
+		const server = document.getElementById("shunt-dns-server").value || "https://1.1.1.1/dns-query";
+		if (!section) return;
+		ensure_hidden_field(section, "dns", "1");
+		ensure_hidden_field(section, "dns_global", global);
+		ensure_hidden_field(section, "dns_protocol", protocol);
+		ensure_hidden_field(section, "dns_strategy", strategy);
+		ensure_hidden_field(section, "dns_server", server);
+		const btn = document.querySelector('.shunt-dns-edit[data-section="' + section + '"]');
+		if (btn) update_dns_button(btn, global, protocol, strategy, server);
+		close_dns_modal();
+	}
 	function check_fakedns(id, val) {
 		const dom_id = "cbid.table." + id + ".";
 		const fakedns_dom = document.getElementById(dom_id + "_fakedns");
@@ -43,51 +203,6 @@
 			proxy_tag_dom.classList.remove('hidden');
 		}
 	}
-	function row_control(row, name) {
-		if (!row) return null;
-		return row.querySelector('input[type="checkbox"][id$=".' + name + '"], select[id$=".' + name + '"], input:not([type="hidden"])[id$=".' + name + '"], textarea[id$=".' + name + '"], [name$=".' + name + '"]:not([type="hidden"])');
-	}
-	function row_option_main(row, name) {
-		if (!row) return null;
-		return row.querySelector('[id$=".' + name + '.main"]');
-	}
-	function option_cell(row, name) {
-		const field = row_control(row, name);
-		const main = row_option_main(row, name);
-		return (field && field.closest("td")) || (main && main.closest("td")) || main || field;
-	}
-	function set_dns_option_state(row, name, hide) {
-		const cell = option_cell(row, name);
-		if (cell) {
-			if (hide) cell.classList.add("hidden");
-			else cell.classList.remove("hidden");
-		}
-		[row_control(row, name), row_option_main(row, name)].forEach(function(el) {
-			if (el && typeof el.disabled !== "undefined") {
-				el.disabled = hide;
-			}
-		});
-	}
-	function check_dns_options(id, row) {
-		row = row || get_shunt_row(id);
-		const global = row_control(row, "_dns_global");
-		if (!global) return;
-		const hide = global.type == "checkbox" ? global.checked : global.value == "1";
-		["_dns_protocol", "_dns_strategy", "_dns_server"].forEach(function(name) {
-			set_dns_option_state(row, name, hide);
-		});
-		// 勾选全局 DNS 时隐藏并禁用本规则 DNS 自定义项。
-	}
-	function hide_default_dns_options(id, row) {
-		row = row || get_shunt_row(id);
-		["_dns_global", "_dns_protocol", "_dns_strategy", "_dns_server"].forEach(function(name) {
-			set_dns_option_state(row, name, true);
-		});
-	}
-	function get_shunt_row(id) {
-		const table_dom = document.getElementById("cbi-passwall-shunt_option_list");
-		return table_dom ? table_dom.getElementsByTagName("tr")[id] : null;
-	}
 	function refresh_depends() {
 		const table_dom = document.getElementById("cbi-passwall-shunt_option_list");
 		if (table_dom) {
@@ -95,7 +210,6 @@
 			for (let i = 1; i < trs.length;i++) {
 				check_fakedns(i);
 				check_proxy_tag(i);
-				check_dns_options(i, trs[i]);
 			}
 		}
 	}
@@ -111,25 +225,22 @@
 					check_fakedns(i, new_val);
 					check_proxy_tag(i, new_val);
 				});
-				const dnsGlobal = row_control(trs[i], "_dns_global");
-				if (dnsGlobal) {
-					["click", "change"].forEach(function(eventName) {
-						dnsGlobal.addEventListener(eventName, function() {
-							check_dns_options(i, trs[i]);
-							setTimeout(function() {
-								check_dns_options(i, trs[i]);
-							}, 0);
-						});
+				const dnsBtn = trs[i].querySelector(".shunt-dns-edit");
+				if (dnsBtn) {
+					dnsBtn.addEventListener("click", function() {
+						open_dns_modal(this);
 					});
 				}
 				if (i == trs.length - 1) {
-					// Default 行不展示独立 DNS 配置。
-					hide_default_dns_options(i, trs[i]);
 					const newArray = window.lv_dropdown_data["cbid.table." + i + "._node"].ungrouped.filter(item => item.key !== "_default");
 					window.lv_dropdown_data["cbid.table." + i + "._node"].ungrouped = newArray
 				}
 			}
 		}
+		document.getElementById("shunt-dns-global").addEventListener("change", toggle_dns_custom);
+		document.getElementById("shunt-dns-cancel").addEventListener("click", close_dns_modal);
+		document.getElementById("shunt-dns-modal-mask").addEventListener("click", close_dns_modal);
+		document.getElementById("shunt-dns-save").addEventListener("click", save_dns_modal);
 	}, 100));
 	//]]>
 </script>

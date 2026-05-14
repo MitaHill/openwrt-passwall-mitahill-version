@@ -739,11 +739,17 @@ msgstr "点击刷新"
 msgid "DNS Request protocol"
 msgstr "DNS 请求协议"
 
+msgid "DNS response"
+msgstr "返回解析"
+
 msgid "DNS stack filter"
 msgstr "过滤栈类型"
 
 msgid "DNS Server"
 msgstr "DNS 服务器"
+
+msgid "When global config is enabled, this rule will not use custom DNS parameters."
+msgstr "启用全局配置时，本规则不会使用独立 DNS 参数。"
 
 msgid "URL Test Address"
 msgstr "URL 测试地址"
@@ -1581,6 +1587,9 @@ msgstr "出站节点"
 
 msgid "Custom Socks"
 msgstr "自定义 Socks"
+
+msgid "Custom"
+msgstr "自定义"
 
 msgid "Custom HTTP"
 msgstr "自定义 HTTP"
