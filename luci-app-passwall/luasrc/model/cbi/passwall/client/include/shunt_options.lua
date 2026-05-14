@@ -120,6 +120,52 @@ table.insert(shunt_rules, {
 	_dns_server_option = "default_dns_server",
 })
 
+local function write_rule_dns_options(section)
+	local rule = shunt_rules[section]
+	if not rule then
+		return
+	end
+
+	local prefix = "cbid.table." .. section .. "."
+	if not http.formvalue(prefix .. "_dns") then
+		return
+	end
+
+	local global = http.formvalue(prefix .. "_dns_global") or "1"
+	local protocol = http.formvalue(prefix .. "_dns_protocol") or "doh"
+	local strategy = http.formvalue(prefix .. "_dns_strategy") or ""
+	local server = api.trim(http.formvalue(prefix .. "_dns_server") or "")
+
+	m:set(current_node_id, rule["_dns_global_option"], global == "0" and "0" or "1")
+	if global == "0" then
+		m:set(current_node_id, rule["_dns_protocol_option"], protocol)
+		if strategy ~= "" then
+			m:set(current_node_id, rule["_dns_strategy_option"], strategy)
+		else
+			m:del(current_node_id, rule["_dns_strategy_option"])
+		end
+		if server ~= "" then
+			m:set(current_node_id, rule["_dns_server_option"], server)
+		else
+			m:del(current_node_id, rule["_dns_server_option"])
+		end
+	else
+		m:del(current_node_id, rule["_dns_protocol_option"])
+		m:del(current_node_id, rule["_dns_strategy_option"])
+		m:del(current_node_id, rule["_dns_server_option"])
+	end
+end
+
+local old_on_before_save = m.on_before_save
+m.on_before_save = function(self)
+	if old_on_before_save then
+		old_on_before_save(self)
+	end
+	for section, _ in ipairs(shunt_rules) do
+		write_rule_dns_options(section)
+	end
+end
+
 s2 = m:section(Table, shunt_rules, " ")
 s2.config = appname
 s2.sectiontype = "shunt_option_list"
@@ -186,9 +232,6 @@ end
 
 dns_button = s2:option(DummyValue, "_dns", "DNS")
 dns_button.rawhtml = true
-dns_button.formvalue = function(self, section)
-	return http.formvalue("cbid.table." .. section .. "._dns")
-end
 dns_button.cfgvalue = function(self, section)
 	local rule = shunt_rules[section]
 	local global = m:get(current_node_id, rule["_dns_global_option"]) or "1"
@@ -208,34 +251,8 @@ dns_button.cfgvalue = function(self, section)
 		html_attr(protocol),
 		html_attr(strategy),
 		html_attr(server)
-	)
-end
-dns_button.write = function(self, section)
-	local prefix = "cbid.table." .. section .. "."
-	local global = http.formvalue(prefix .. "_dns_global") or "1"
-	local protocol = http.formvalue(prefix .. "_dns_protocol") or "doh"
-	local strategy = http.formvalue(prefix .. "_dns_strategy") or ""
-	local server = api.trim(http.formvalue(prefix .. "_dns_server") or "")
-	local rule = shunt_rules[section]
-	m:set(current_node_id, rule["_dns_global_option"], global == "0" and "0" or "1")
-	if global == "0" then
-		m:set(current_node_id, rule["_dns_protocol_option"], protocol)
-		if strategy ~= "" then
-			m:set(current_node_id, rule["_dns_strategy_option"], strategy)
-		else
-			m:del(current_node_id, rule["_dns_strategy_option"])
-		end
-		if server ~= "" then
-			m:set(current_node_id, rule["_dns_server_option"], server)
-		else
-			m:del(current_node_id, rule["_dns_server_option"])
-		end
-	else
-		m:del(current_node_id, rule["_dns_protocol_option"])
-		m:del(current_node_id, rule["_dns_strategy_option"])
-		m:del(current_node_id, rule["_dns_server_option"])
+		)
 	end
-end
 
 for k1, v1 in pairs(node_list) do
 	if k1 ~= "shunt_list" then
