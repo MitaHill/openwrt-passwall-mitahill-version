@@ -196,6 +196,7 @@ dns_global.remove = function(self, section)
 end
 
 dns_protocol = s2:option(ListValue, "_dns_protocol", translate("DNS Request protocol"))
+dns_protocol:depends("_dns_global", "0")
 dns_protocol:value("udp", "UDP")
 dns_protocol:value("tcp", "TCP")
 dns_protocol:value("doh", "DoH")
@@ -212,6 +213,7 @@ dns_protocol.remove = function(self, section)
 end
 
 dns_strategy = s2:option(ListValue, "_dns_strategy", translate("DNS stack filter"))
+dns_strategy:depends("_dns_global", "0")
 dns_strategy:value("", translate("All"))
 dns_strategy:value("ipv4_only", translate("IPv4 Only"))
 dns_strategy:value("ipv6_only", translate("IPv6 Only"))
@@ -230,6 +232,7 @@ dns_strategy.remove = function(self, section)
 end
 
 dns_server = s2:option(Value, "_dns_server", translate("DNS Server"))
+dns_server:depends("_dns_global", "0")
 dns_server:value("1.1.1.1", "1.1.1.1 (CloudFlare)")
 dns_server:value("1.1.1.2", "1.1.1.2 (CloudFlare-Security)")
 dns_server:value("8.8.4.4", "8.8.4.4 (Google)")

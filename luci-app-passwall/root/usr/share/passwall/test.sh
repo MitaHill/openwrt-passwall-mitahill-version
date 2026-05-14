@@ -84,24 +84,6 @@ url_test_average() {
 	echo "0:"
 }
 
-fetch_outbound_ip() {
-	local curlx="$1"
-	local family="$2"
-	local try
-	local result=""
-	sleep 1
-	for try in 1 2 3 4 5; do
-		result=$(/usr/bin/curl -x "$curlx" "$family" -fsS --connect-timeout 3 --max-time 6 https://ip.sb 2>/dev/null | tr -d ' \t\r\n')
-		[ -n "$result" ] && {
-			echo "$result"
-			return 0
-		}
-		sleep 1
-	done
-	echo ""
-	return 0
-}
-
 node_to_curlx() {
 	local node_id=$1
 	local _type=$(echo "$(config_n_get "$node_id" type)" | tr 'A-Z' 'a-z')
@@ -145,20 +127,6 @@ url_test_node() {
 	echo $result
 }
 
-outbound_ip_node() {
-	local node_id=$1
-	local curlx="$(node_to_curlx "$node_id")"
-	local ipv4 ipv6
-	[ -n "$curlx" ] && {
-		# 先等待后重试，降低临时 socks 冷启动误判。
-		ipv4=$(fetch_outbound_ip "$curlx" -4)
-		ipv6=$(fetch_outbound_ip "$curlx" -6)
-	}
-	url_test_node_cleanup "$node_id"
-	echo "ipv4=${ipv4}"
-	echo "ipv6=${ipv6}"
-}
-
 arg1=$1
 shift
 case $arg1 in
@@ -167,8 +135,5 @@ test_url)
 	;;
 url_test_node)
 	url_test_node $@
-	;;
-outbound_ip_node)
-	outbound_ip_node $@
 	;;
 esac

@@ -45,7 +45,7 @@
 	}
 	function row_control(row, name) {
 		if (!row) return null;
-		return row.querySelector('[id$=".' + name + '"], [name$=".' + name + '"]');
+		return row.querySelector('input[type="checkbox"][id$=".' + name + '"], select[id$=".' + name + '"], input:not([type="hidden"])[id$=".' + name + '"], textarea[id$=".' + name + '"], [name$=".' + name + '"]:not([type="hidden"])');
 	}
 	function row_option_main(row, name) {
 		if (!row) return null;
@@ -72,7 +72,7 @@
 		row = row || get_shunt_row(id);
 		const global = row_control(row, "_dns_global");
 		if (!global) return;
-		const hide = global.checked;
+		const hide = global.type == "checkbox" ? global.checked : global.value == "1";
 		["_dns_protocol", "_dns_strategy", "_dns_server"].forEach(function(name) {
 			set_dns_option_state(row, name, hide);
 		});

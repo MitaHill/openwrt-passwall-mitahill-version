@@ -79,7 +79,6 @@ function index()
 	entry({"admin", "services", appname, "connect_status"}, call("connect_status")).leaf = true
 	entry({"admin", "services", appname, "ping_node"}, call("ping_node")).leaf = true
 	entry({"admin", "services", appname, "urltest_node"}, call("urltest_node")).leaf = true
-	entry({"admin", "services", appname, "outbound_ip_node"}, call("outbound_ip_node")).leaf = true
 	entry({"admin", "services", appname, "add_node"}, call("add_node")).leaf = true
 	entry({"admin", "services", appname, "update_node"}, call("update_node")).leaf = true
 	entry({"admin", "services", appname, "set_node"}, call("set_node")).leaf = true
@@ -441,32 +440,6 @@ function urltest_node()
 			e.use_time = string.format("%.2f", use_time * 1000)
 		end
 	end
-	http_write_json(e)
-end
-
-function outbound_ip_node()
-	local index = http.formvalue("index")
-	local id = http.formvalue("id")
-	local e = {}
-	e.index = index
-	if not id or id == "" then
-		http_write_json(e)
-		return
-	end
-	local node = uci:get_all(appname, id) or {}
-	if node.protocol == "_shunt" or node.protocol == "_urltest" or node.protocol == "_balancing" or node.protocol == "_iface" then
-		http_write_json(e)
-		return
-	end
-	-- 不修复时：节点列表只能看到服务器入口地址，无法确认该节点实际出口 IP，排查落地位置和流媒体解锁时需要手动 SSH 测试。
-	-- 修复逻辑：只接收节点 id，复用 test.sh 为该节点临时拉起本地 socks，再由后端执行 ip.sb 的 IPv4/IPv6 查询。
-	-- 预期结果：前端只拿到纯出口 IP，不接触 shell 参数；特殊分流/URLTest 节点不检测，避免展示含义不明确的出口。
-	local function shell_quote(value)
-		return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
-	end
-	local result = luci.sys.exec("/usr/share/passwall/test.sh outbound_ip_node " .. shell_quote(id))
-	e.ipv4 = result:match("ipv4=([^\n\r]+)") or ""
-	e.ipv6 = result:match("ipv6=([^\n\r]+)") or ""
 	http_write_json(e)
 end
 

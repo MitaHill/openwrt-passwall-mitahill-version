@@ -733,12 +733,6 @@ msgstr "自动检测延迟"
 msgid "Show server address and port"
 msgstr "显示服务器地址和端口"
 
-msgid "Show IP outlet"
-msgstr "显示IP出口"
-
-msgid "IP outlet"
-msgstr "IP出口"
-
 msgid "Click to refresh"
 msgstr "点击刷新"
 

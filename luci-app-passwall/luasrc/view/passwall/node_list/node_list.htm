@@ -219,7 +219,6 @@ table td, .table .td {
 	//<![CDATA[
 	let auto_detection_time = "<%=api.uci_get_type("global_other", "auto_detection_time", "0")%>"
 	let show_node_info = "<%=api.uci_get_type("global_other", "show_node_info", "0")%>"
-	let show_node_outbound_ip = "<%=api.uci_get_type("global_other", "show_node_outbound_ip", "0")%>"
 	var ajaxList = [];
 
 	var ajax = {
@@ -580,130 +579,6 @@ table td, .table .td {
 				}
 			}
 		);
-	}
-
-	function render_outbound_ip(ipv4, ipv6) {
-		var values = [];
-		if (ipv4) values.push(ipv4);
-		if (ipv6) values.push(ipv6);
-		return values.length > 0 ? "<%:IP outlet%>: " + values.join(" / ") : "<%:IP outlet%>: <%:Timeout%>";
-	}
-
-	function outbound_ip_node(cbi_id, dom) {
-		if (dom.dataset.busy == "1" || !cbi_id) return;
-		dom.dataset.busy = "1";
-		dom.style.color = "";
-		dom.innerText = "<%:IP outlet%>: <%:Check...%>";
-		XHR.get('<%=api.url("outbound_ip_node")%>', {
-				id: cbi_id
-			},
-			function(x, result) {
-				let color = "red";
-				let text = "<%:IP outlet%>: <%:Error%>";
-				let ipv4 = "";
-				let ipv6 = "";
-				if (x && x.status == 200) {
-					ipv4 = (result.ipv4 || "").trim();
-					ipv6 = (result.ipv6 || "").trim();
-					text = render_outbound_ip(ipv4, ipv6);
-					if (ipv4 || ipv6) color = "#666";
-				}
-				dom.innerText = text;
-				dom.style.color = color;
-				dom.dataset.busy = "0";
-				if (text != "<%:IP outlet%>: <%:Error%>") {
-					localStorage.setItem("outbound_ip:" + cbi_id, JSON.stringify({
-						timestamp: Date.now(),
-						savetime: 5 * 60 * 1000,
-						ipv4: ipv4,
-						ipv6: ipv6
-					}));
-				}
-			}
-		);
-	}
-
-	function detectAllOutboundIPs() {
-		if (show_node_outbound_ip != "1") return;
-		const now = Date.now();
-		const nodes = [];
-		const outbound_ip_value = document.getElementsByClassName('outbound_ip_value');
-		for (let i = 0; i < outbound_ip_value.length; i++) {
-			const cbi_id = outbound_ip_value[i].getAttribute("cbiid");
-			if (!cbi_id) continue;
-			const span = outbound_ip_value[i];
-			const cacheData = JSON.parse(localStorage.getItem("outbound_ip:" + cbi_id));
-			if (cacheData && cacheData.savetime && (now - cacheData.timestamp) < cacheData.savetime) {
-				span.innerText = render_outbound_ip(cacheData.ipv4 || "", cacheData.ipv6 || "");
-				span.style.color = (cacheData.ipv4 || cacheData.ipv6) ? "#666" : "red";
-				span.onclick = function () {
-					outbound_ip_node(cbi_id, this);
-				};
-			} else {
-				localStorage.removeItem("outbound_ip:" + cbi_id);
-				nodes.push({
-					index: i,
-					id: cbi_id
-				});
-			}
-		}
-
-		const _xhr = (index) => {
-			return new Promise((res) => {
-				const dom = nodes[index];
-				if (!dom) {
-					res();
-					return;
-				}
-				ajax.post('<%=api.url("outbound_ip_node")%>', {
-					index: dom.index,
-					id: dom.id
-				},
-				function(x, result) {
-					const span = outbound_ip_value[dom.index];
-					const cbi_id = span.getAttribute("cbiid");
-					const ipv4 = (result.ipv4 || "").trim();
-					const ipv6 = (result.ipv6 || "").trim();
-					span.innerText = render_outbound_ip(ipv4, ipv6);
-					span.style.color = (ipv4 || ipv6) ? "#666" : "red";
-					span.onclick = function () {
-						outbound_ip_node(cbi_id, this);
-					};
-					localStorage.setItem("outbound_ip:" + cbi_id, JSON.stringify({
-						timestamp: Date.now(),
-						savetime: 5 * 60 * 1000,
-						ipv4: ipv4,
-						ipv6: ipv6
-					}));
-					res();
-				},
-				15000,
-				function(x) {
-					const span = outbound_ip_value[dom.index];
-					const cbi_id = span.getAttribute("cbiid");
-					span.innerText = "<%:IP outlet%>: <%:Timeout%>";
-					span.style.color = "red";
-					span.onclick = function () {
-						outbound_ip_node(cbi_id, this);
-					};
-					res();
-				});
-			});
-		}
-
-		let task = -1;
-		const thread = () => {
-			task = task + 1;
-			if (nodes[task]) {
-				_xhr(task).then(thread);
-			}
-		}
-		// 不修复时：如果页面打开后对所有节点同时检测出口 IP，会瞬间启动大量临时 socks 和 curl，低性能路由器容易卡顿。
-		// 修复逻辑：出口 IP 自动检测使用 5 分钟前端缓存，并将并发限制为 2；用户仍可点击单个出口 IP 手动刷新。
-		// 预期结果：节点列表能显示真实出口 IP，同时避免批量检测影响 PassWall 主进程和当前连接稳定性。
-		for (let i = 0; i < 2; i++) {
-			thread();
-		}
 	}
 
 	function ping_node(cbi_id, dom, type) {
@@ -1197,9 +1072,6 @@ table td, .table .td {
 								node_remarks += "<br>" + _address + ":" + o["port"]
 							}
 						}
-						if (show_node_outbound_ip == "1" && o["address"] && o["port"] && o["protocol"] != "_shunt" && o["protocol"] != "_urltest" && o["protocol"] != "_balancing" && o["protocol"] != "_iface") {
-							node_remarks += '<br><span class="outbound_ip_value" cbiid="{{id}}" style="cursor:pointer;color:#666" title="<%:Click to refresh%>"><%:IP outlet%>: ---</span>';
-						}
 						innerHTML = innerHTML.split("{{remarks}}").join(node_remarks);
 						innerHTML = innerHTML.split("{{remarks_val}}").join(o["remarks"]);
 						innerHTML = innerHTML.split("{{address_val}}").join(o["address"] || "");
@@ -1305,14 +1177,6 @@ table td, .table .td {
 				el.blur();
 				show_node_info = el.checked ? "1" : "0";
 				onChange("show_node_info", show_node_info);
-			});
-		});
-
-		waitForElement('input[type="checkbox"][name*="<%=appname%>"][name*="show_node_outbound_ip"]', function(el) {
-			el.addEventListener("change", () => {
-				el.blur();
-				show_node_outbound_ip = el.checked ? "1" : "0";
-				onChange("show_node_outbound_ip", show_node_outbound_ip);
 			});
 		});
 
