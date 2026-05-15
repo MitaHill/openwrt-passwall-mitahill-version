@@ -33,8 +33,12 @@ local function html_attr(value)
 	return tostring(value or ""):gsub("&", "&amp;"):gsub('"', "&quot;"):gsub("<", "&lt;"):gsub(">", "&gt;")
 end
 
+-- 这里仅展示当前编辑对象，避免把编辑上下文挤进表单主体。
 m.description = string.format(
-	'<div class="cbi-section-descr"><strong>%s</strong>: %s<br /><strong>%s</strong>: %s</div>',
+	'<div class="cbi-section-descr" style="padding:8px 12px;border-left:3px solid #4a90e2;background:#f7faff;line-height:1.8">' ..
+		'<div><span style="display:inline-block;min-width:6em;color:#666">%s</span><strong style="font-size:1.05em">%s</strong></div>' ..
+		'<div><span style="display:inline-block;min-width:6em;color:#666">%s</span><strong style="font-size:1.05em">%s</strong></div>' ..
+	'</div>',
 	translate("Shunt Node"), html_attr(node_label),
 	translate("Rule"), html_attr(rule_label)
 )
@@ -74,22 +78,47 @@ o.default = ""
 o.rmempty = true
 o:depends(prefix .. "global", false)
 
-o = s:option(Value, prefix .. "server", translate("DNS Server"))
-o:value("1.1.1.1", "1.1.1.1 (CloudFlare)")
-o:value("1.1.1.2", "1.1.1.2 (CloudFlare-Security)")
-o:value("8.8.4.4", "8.8.4.4 (Google)")
-o:value("8.8.8.8", "8.8.8.8 (Google)")
-o:value("9.9.9.9", "9.9.9.9 (Quad9)")
-o:value("149.112.112.112", "149.112.112.112 (Quad9)")
-o:value("208.67.222.222", "208.67.222.222 (OpenDNS)")
-o:value("https://1.1.1.1/dns-query", "DoH 1.1.1.1 (CloudFlare)")
-o:value("https://8.8.8.8/dns-query", "DoH 8.8.8.8 (Google)")
-o:value("https://9.9.9.9/dns-query", "DoH 9.9.9.9 (Quad9)")
-o:value("https://dns.adguard.com/dns-query,94.140.14.14", "DoH AdGuard")
-o.default = "https://1.1.1.1/dns-query"
-o.combobox_manual = translate("Custom")
-o.description = translate("Select a preset server or enter a custom DNS server address.")
-o.rmempty = true
-o:depends(prefix .. "global", false)
+local function add_server_field(option, protocols, presets, default_value)
+	-- 把协议和预设列表拆开，避免在前端动态删选项后出现保存错位。
+	local o = s:option(Value, prefix .. option, translate("DNS Server"))
+	for _, item in ipairs(presets) do
+		o:value(item[1], item[2])
+	end
+	o.default = default_value
+	o.combobox_manual = translate("Custom")
+	o.description = translate("Select a preset server or enter a custom DNS server address.")
+	o.rmempty = true
+	o.cfgvalue = function(self, section)
+		return m:get(node_id, prefix .. "server") or default_value
+	end
+	o.write = function(self, section, value)
+		value = api.trim(value or "")
+		if value ~= "" then
+			m:set(node_id, prefix .. "server", value)
+		end
+	end
+	o.remove = function(self, section)
+	end
+	for _, protocol in ipairs(protocols) do
+		o:depends({ [prefix .. "global"] = false, [prefix .. "protocol"] = protocol })
+	end
+end
+
+add_server_field("_server_plain", { "udp", "tcp" }, {
+	{ "1.1.1.1", "1.1.1.1 (CloudFlare)" },
+	{ "1.1.1.2", "1.1.1.2 (CloudFlare-Security)" },
+	{ "8.8.4.4", "8.8.4.4 (Google)" },
+	{ "8.8.8.8", "8.8.8.8 (Google)" },
+	{ "9.9.9.9", "9.9.9.9 (Quad9)" },
+	{ "149.112.112.112", "149.112.112.112 (Quad9)" },
+	{ "208.67.222.222", "208.67.222.222 (OpenDNS)" },
+}, "1.1.1.1")
+
+add_server_field("_server_doh", { "doh", "http3" }, {
+	{ "https://1.1.1.1/dns-query", "DoH 1.1.1.1 (CloudFlare)" },
+	{ "https://8.8.8.8/dns-query", "DoH 8.8.8.8 (Google)" },
+	{ "https://9.9.9.9/dns-query", "DoH 9.9.9.9 (Quad9)" },
+	{ "https://dns.adguard.com/dns-query,94.140.14.14", "DoH AdGuard" },
+}, "https://1.1.1.1/dns-query")
 
 return m

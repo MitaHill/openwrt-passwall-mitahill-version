@@ -185,10 +185,11 @@ o.cfgvalue = function(self, section)
 	if m:get(current_node_id, rule["_dns_global_option"]) == "0" then
 		text = translate("Custom")
 	end
-	return string.format('%s&nbsp;<a class="btn cbi-button cbi-button-edit" href="%s">%s</a>',
-		html_attr(text),
+	-- 这里只保留状态摘要，编辑入口放在左侧，减少列内拥挤。
+	return string.format('<a class="btn cbi-button cbi-button-edit" href="%s">%s</a>&nbsp;%s',
 		api.url("shunt_dns", current_node_id, rule.id),
-		translate("Edit"))
+		translate("Edit"),
+		html_attr(text))
 end
 
 for k1, v1 in pairs(node_list) do
