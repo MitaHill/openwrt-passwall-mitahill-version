@@ -216,6 +216,9 @@ function gen_outbound(flag, node, tag, proxy_table)
 					table.insert(alpn, w)
 				end)
 			end
+			-- naive outbound 不支持 sing-box 的 TLS fragment；全局开启时需跳过，避免配置校验失败。
+			local tls_fragment = node.protocol ~= "naive" and fragment or nil
+			local tls_record_fragment = node.protocol ~= "naive" and record_fragment or nil
 			tls = {
 				enabled = true,
 				disable_sni = (node.tls_disable_sni == "1") and true or false, --不要在 ClientHello 中发送服务器名称.
@@ -224,8 +227,8 @@ function gen_outbound(flag, node, tag, proxy_table)
 				alpn = alpn, --支持的应用层协议协商列表，按优先顺序排列。如果两个对等点都支持 ALPN，则选择的协议将是此列表中的一个，如果没有相互支持的协议则连接将失败。
 				--min_version = "1.2",
 				--max_version = "1.3",
-				fragment = fragment,
-				record_fragment = record_fragment,
+				fragment = tls_fragment,
+				record_fragment = tls_record_fragment,
 				ech = (node.ech == "1") and (function()
 					local function get_ech_domain(s) --兼容xray "域名+DNS" 格式ech
 						local domain, dns = s:match("^([^+]+)%+(.+)$")
