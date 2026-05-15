@@ -49,6 +49,7 @@ function index()
 	entry({"admin", "services", appname, "node_subscribe_config"}, cbi(appname .. "/client/node_subscribe_config")).leaf = true
 	entry({"admin", "services", appname, "node_config"}, cbi(appname .. "/client/node_config")).leaf = true
 	entry({"admin", "services", appname, "shunt_rules"}, cbi(appname .. "/client/shunt_rules")).leaf = true
+	entry({"admin", "services", appname, "shunt_dns"}, cbi(appname .. "/client/shunt_dns")).leaf = true
 	entry({"admin", "services", appname, "socks_config"}, cbi(appname .. "/client/socks_config")).leaf = true
 	entry({"admin", "services", appname, "acl"}, cbi(appname .. "/client/acl"), _("Access control"), 98).leaf = true
 	entry({"admin", "services", appname, "acl_config"}, cbi(appname .. "/client/acl_config")).leaf = true

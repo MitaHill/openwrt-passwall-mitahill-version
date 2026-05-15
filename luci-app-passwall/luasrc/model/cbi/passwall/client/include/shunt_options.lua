@@ -1,5 +1,4 @@
 local m, s, data = ...
-local http = require "luci.http"
 
 if not data.node_id or not data.node then
 	return
@@ -102,9 +101,6 @@ m.uci:foreach(appname, "shunt_rules", function(e)
 	e["_fakedns_option"] = e[".name"] .. "_fakedns"
 	e["_proxy_tag_option"] = e[".name"] .. "_proxy_tag"
 	e["_dns_global_option"] = e[".name"] .. "_dns_global"
-	e["_dns_protocol_option"] = e[".name"] .. "_dns_protocol"
-	e["_dns_strategy_option"] = e[".name"] .. "_dns_strategy"
-	e["_dns_server_option"] = e[".name"] .. "_dns_server"
 	table.insert(shunt_rules, e)
 end)
 table.insert(shunt_rules, {
@@ -115,52 +111,7 @@ table.insert(shunt_rules, {
 	_fakedns_option = "default_fakedns",
 	_proxy_tag_option = "default_proxy_tag",
 	_dns_global_option = "default_dns_global",
-	_dns_protocol_option = "default_dns_protocol",
-	_dns_strategy_option = "default_dns_strategy",
-	_dns_server_option = "default_dns_server",
 })
-
-local function write_rule_dns_options(section)
-	local rule = shunt_rules[section]
-	if not rule then
-		return
-	end
-
-	local prefix = "cbid.table." .. section .. "."
-	local global = http.formvalue(prefix .. "_dns_global") or "1"
-	local protocol = http.formvalue(prefix .. "_dns_protocol") or "doh"
-	local strategy = http.formvalue(prefix .. "_dns_strategy") or ""
-	local server = api.trim(http.formvalue(prefix .. "_dns_server") or "")
-
-	m:set(current_node_id, rule["_dns_global_option"], global == "0" and "0" or "1")
-	if global == "0" then
-		m:set(current_node_id, rule["_dns_protocol_option"], protocol)
-		if strategy ~= "" then
-			m:set(current_node_id, rule["_dns_strategy_option"], strategy)
-		else
-			m:del(current_node_id, rule["_dns_strategy_option"])
-		end
-		if server ~= "" then
-			m:set(current_node_id, rule["_dns_server_option"], server)
-		else
-			m:del(current_node_id, rule["_dns_server_option"])
-		end
-	else
-		m:del(current_node_id, rule["_dns_protocol_option"])
-		m:del(current_node_id, rule["_dns_strategy_option"])
-		m:del(current_node_id, rule["_dns_server_option"])
-	end
-end
-
-local old_on_before_save = m.on_before_save
-m.on_before_save = function(self)
-	if old_on_before_save then
-		old_on_before_save(self)
-	end
-	for section, _ in ipairs(shunt_rules) do
-		write_rule_dns_options(section)
-	end
-end
 
 s2 = m:section(Table, shunt_rules, " ")
 s2.config = appname
@@ -226,45 +177,19 @@ local function html_attr(value)
 	return tostring(value or ""):gsub("&", "&amp;"):gsub('"', "&quot;"):gsub("<", "&lt;"):gsub(">", "&gt;")
 end
 
-dns_button = s2:option(DummyValue, "_dns", "DNS")
-dns_button.rawhtml = true
-dns_button.cfgvalue = function(self, section)
+o = s2:option(DummyValue, "_dns", "DNS")
+o.rawhtml = true
+o.cfgvalue = function(self, section)
 	local rule = shunt_rules[section]
-	local global = m:get(current_node_id, rule["_dns_global_option"]) or "1"
-	local protocol = m:get(current_node_id, rule["_dns_protocol_option"]) or "doh"
-	local strategy = m:get(current_node_id, rule["_dns_strategy_option"]) or ""
-	local server = m:get(current_node_id, rule["_dns_server_option"]) or "https://1.1.1.1/dns-query"
-	local text = translate("Use global config")
-	if global == "0" then
-		local strategy_text = strategy == "ipv4_only" and translate("IPv4 Only") or strategy == "ipv6_only" and translate("IPv6 Only") or translate("All")
-		text = string.format("%s: %s / %s", translate("Custom"), protocol:upper(), strategy_text)
+	local text = translate("Global")
+	if m:get(current_node_id, rule["_dns_global_option"]) == "0" then
+		text = translate("Custom")
 	end
-	return string.format(
-		'<input type="button" class="btn cbi-button cbi-button-edit shunt-dns-edit" value="%s" data-section="%s" data-global="%s" data-protocol="%s" data-strategy="%s" data-server="%s" />'
-		.. '<input type="hidden" id="cbid.table.%s._dns_global" name="cbid.table.%s._dns_global" value="%s" />'
-		.. '<input type="hidden" id="cbid.table.%s._dns_protocol" name="cbid.table.%s._dns_protocol" value="%s" />'
-		.. '<input type="hidden" id="cbid.table.%s._dns_strategy" name="cbid.table.%s._dns_strategy" value="%s" />'
-		.. '<input type="hidden" id="cbid.table.%s._dns_server" name="cbid.table.%s._dns_server" value="%s" />',
+	return string.format('%s&nbsp;<a class="btn cbi-button cbi-button-edit" href="%s">%s</a>',
 		html_attr(text),
-		html_attr(section),
-		html_attr(global),
-		html_attr(protocol),
-		html_attr(strategy),
-		html_attr(server),
-		html_attr(section),
-		html_attr(section),
-		html_attr(global),
-		html_attr(section),
-		html_attr(section),
-		html_attr(protocol),
-		html_attr(section),
-		html_attr(section),
-		html_attr(strategy),
-		html_attr(section),
-		html_attr(section),
-		html_attr(server)
-		)
-	end
+		api.url("shunt_dns", current_node_id, rule.id),
+		translate("Edit"))
+end
 
 for k1, v1 in pairs(node_list) do
 	if k1 ~= "shunt_list" then

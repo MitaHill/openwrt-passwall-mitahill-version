@@ -2144,5 +2144,17 @@ msgstr "并发隧道连接数"
 msgid "Processing, please wait…"
 msgstr "正在处理，请稍候…"
 
-msgid "DNS settings save failed, please refresh this page and try again."
-msgstr "DNS 设置保存失败，请刷新页面后重试。"
+msgid "Global"
+msgstr "全局"
+
+msgid "Edit"
+msgstr "编辑"
+
+msgid "Shunt Rule DNS"
+msgstr "分流规则 DNS"
+
+msgid "Shunt Node"
+msgstr "分流节点"
+
+msgid "Select a preset server or enter a custom DNS server address."
+msgstr "选择一个预设服务器，或输入自定义 DNS 服务器地址。"
