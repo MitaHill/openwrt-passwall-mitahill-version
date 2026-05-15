@@ -1031,6 +1031,8 @@ function gen_config(var)
 	local remote_dns_query_strategy = var["remote_dns_query_strategy"]
 	local remote_dns_fake = var["remote_dns_fake"]
 	local dns_cache = var["dns_cache"]
+	local zashboard_port = var["zashboard_port"]
+	local zashboard_secret = var["zashboard_secret"]
 	local dns_socks_address = var["dns_socks_address"]
 	local dns_socks_port = var["dns_socks_port"]
 	local no_run = var["no_run"]
@@ -1049,6 +1051,15 @@ function gen_config(var)
 	}
 
 	local experimental = nil
+	if zashboard_port and zashboard_secret and zashboard_port ~= "" and zashboard_secret ~= "" then
+		-- 观察面板只需要 Clash API 状态接口；控制动作由 zashboard 只读前端阻断。
+		experimental = {
+			clash_api = {
+				external_controller = "0.0.0.0:" .. zashboard_port,
+				secret = zashboard_secret,
+			}
+		}
+	end
 
 	local function parse_dns_host_port(server, default_port)
 		server = api.trim(server or "")

@@ -3,43 +3,78 @@ local api = require "luci.passwall.api"
 -%>
 <script type="text/javascript">
 	//<![CDATA[
-	var log_textarea = null;
-	var first_load_done = false;
+	var log_state = {
+		passwall: { textarea: null, first_load_done: false },
+		singbox: { textarea: null, first_load_done: false }
+	};
 
-	function scrollToBottom() {
-		log_textarea.scrollTop = log_textarea.scrollHeight;
+	function scrollToBottom(name) {
+		var state = log_state[name];
+		if (state && state.textarea) state.textarea.scrollTop = state.textarea.scrollHeight;
 	}
 
 	function clearlog(btn) {
 		XHR.get('<%=api.url("clear_log")%>', null,
 			function(x, data) {
-				if(x && x.status == 200 && log_textarea) {
-					log_textarea.innerHTML = "";
-					scrollToBottom();
+				var state = log_state.passwall;
+				if(x && x.status == 200 && state.textarea) {
+					state.textarea.innerHTML = "";
+					scrollToBottom('passwall');
 				}
 			}
 		);
 	}
 
+	function switchLogTab(name) {
+		var is_passwall = name == 'passwall';
+		document.getElementById('passwall_log_panel').style.display = is_passwall ? '' : 'none';
+		document.getElementById('singbox_log_panel').style.display = is_passwall ? 'none' : '';
+		document.getElementById('passwall_log_tab').className = is_passwall ? 'cbi-button cbi-button-apply' : 'cbi-button';
+		document.getElementById('singbox_log_tab').className = is_passwall ? 'cbi-button' : 'cbi-button cbi-button-apply';
+	}
+
+	function updateLog(name, element_id, text) {
+		var state = log_state[name];
+		if (!state.textarea) state.textarea = document.getElementById(element_id);
+		if (!state.textarea) return;
+		var wasBottom = (state.textarea.scrollTop + state.textarea.clientHeight >= state.textarea.scrollHeight - 10);
+		state.textarea.innerHTML = text;
+		if (!state.first_load_done) {
+			scrollToBottom(name);
+			state.first_load_done = true;
+		}
+		else if (wasBottom) {
+			scrollToBottom(name);
+		}
+	}
+
 	XHR.poll(5, '<%=api.url("get_log")%>', null,
 		function(x, data) {
 			if(x && x.status == 200) {
-				if (!log_textarea) log_textarea = document.getElementById('log_textarea');
-				var wasBottom = (log_textarea.scrollTop + log_textarea.clientHeight >= log_textarea.scrollHeight - 10);
-				log_textarea.innerHTML = x.responseText;
-				if (!first_load_done) {
-					scrollToBottom();
-					first_load_done = true;
-				}
-				else if (wasBottom) {
-					scrollToBottom();
-				}
+				updateLog('passwall', 'passwall_log_textarea', x.responseText);
+			}
+		}
+	);
+
+	XHR.poll(5, '<%=api.url("get_singbox_log")%>', null,
+		function(x, data) {
+			if(x && x.status == 200) {
+				updateLog('singbox', 'singbox_log_textarea', x.responseText);
 			}
 		}
 	);
 	//]]>
 </script>
 <fieldset class="cbi-section" id="_log_fieldset">
-	<input class="btn cbi-button cbi-button-remove" type="button" onclick="clearlog()" value="<%:Clear logs%>" />
-	<textarea id="log_textarea" class="cbi-input-textarea" style="width: 100%;margin-top: 10px;" data-update="change" rows="40" wrap="off" readonly="readonly"></textarea>
+	<div style="margin-bottom: 10px;">
+		<input id="passwall_log_tab" class="cbi-button cbi-button-apply" type="button" onclick="switchLogTab('passwall')" value="<%:Passwall Log%>" />
+		<input id="singbox_log_tab" class="cbi-button" type="button" onclick="switchLogTab('singbox')" value="<%:Sing-box Log%>" />
+	</div>
+	<div id="passwall_log_panel">
+		<input class="btn cbi-button cbi-button-remove" type="button" onclick="clearlog()" value="<%:Clear logs%>" />
+		<textarea id="passwall_log_textarea" class="cbi-input-textarea" style="width: 100%;margin-top: 10px;" data-update="change" rows="32" wrap="off" readonly="readonly"></textarea>
+	</div>
+	<div id="singbox_log_panel" style="display: none;">
+		<textarea id="singbox_log_textarea" class="cbi-input-textarea" style="width: 100%;margin-top: 10px;" data-update="change" rows="32" wrap="off" readonly="readonly"></textarea>
+	</div>
 </fieldset>

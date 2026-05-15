@@ -192,6 +192,31 @@ o = s:taboption("Main", Flag, "tcp_node_socks_bind_local", translate("TCP Node")
 o.default = "1"
 o:depends({ tcp_node = "", ["!reverse"] = true })
 
+o = s:taboption("Main", DummyValue, "_zashboard_panel", translate("Dashboard"))
+o.rawhtml = true
+o.cfgvalue = function(self, section)
+	local port = m:get(section, "zashboard_port") or "9090"
+	local secret = m:get(section, "zashboard_secret") or ""
+	local host = luci.http.getenv("HTTP_HOST") or "127.0.0.1"
+	if host:sub(1, 1) == "[" then
+		host = host:match("^%[([^%]]+)%]") or host
+	else
+		host = host:match("^([^:]+)") or host
+	end
+	local query = string.format("?hostname=%s&port=%s&http=1&secret=%s&label=Passwall&disableUpgradeCore=1",
+		api.UrlEncode(host),
+		api.UrlEncode(port),
+		api.UrlEncode(secret))
+	local href = "/luci-static/passwall/zashboard/index.html" .. query .. "#/proxies"
+	return string.format(
+		'<a class="btn cbi-button cbi-button-apply" href="%s" target="_blank">%s</a>' ..
+		'<div class="cbi-value-description" style="margin-top:6px">%s</div>',
+		href,
+		translate("Observation Panel"),
+		translate("The panel is available only when Passwall and Sing-box are running."))
+end
+o:depends({ tcp_node = "", ["!reverse"] = true })
+
 -- Node → DNS Depends Settings
 o = s:taboption("Main", DummyValue, "_node_sel_shunt", "")
 o.template = appname .. "/cbi/hidevalue"

@@ -2158,3 +2158,18 @@ msgstr "分流节点"
 
 msgid "Select a preset server or enter a custom DNS server address."
 msgstr "选择一个预设服务器，或输入自定义 DNS 服务器地址。"
+
+msgid "Dashboard"
+msgstr "面板"
+
+msgid "Observation Panel"
+msgstr "观察面板"
+
+msgid "The panel is available only when Passwall and Sing-box are running."
+msgstr "只有在 Passwall 与 Sing-box 运行时才可以进入面板。"
+
+msgid "Passwall Log"
+msgstr "Passwall日志"
+
+msgid "Sing-box Log"
+msgstr "Sing-box日志"

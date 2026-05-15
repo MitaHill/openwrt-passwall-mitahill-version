@@ -73,8 +73,10 @@ function index()
 	entry({"admin", "services", appname, "get_socks_log"}, call("get_socks_log")).leaf = true
 	entry({"admin", "services", appname, "get_chinadns_log"}, call("get_chinadns_log")).leaf = true
 	entry({"admin", "services", appname, "get_log"}, call("get_log")).leaf = true
+	entry({"admin", "services", appname, "get_singbox_log"}, call("get_singbox_log")).leaf = true
 	entry({"admin", "services", appname, "clear_log"}, call("clear_log")).leaf = true
 	entry({"admin", "services", appname, "index_status"}, call("index_status")).leaf = true
+	entry({"admin", "services", appname, "zashboard_status"}, call("zashboard_status")).leaf = true
 	entry({"admin", "services", appname, "haproxy_status"}, call("haproxy_status")).leaf = true
 	entry({"admin", "services", appname, "socks_status"}, call("socks_status")).leaf = true
 	entry({"admin", "services", appname, "connect_status"}, call("connect_status")).leaf = true
@@ -294,12 +296,28 @@ function get_log()
 	http.write(luci.sys.exec("[ -f '/tmp/log/passwall.log' ] && cat /tmp/log/passwall.log"))
 end
 
+function get_singbox_log()
+	local paths = {
+		"/tmp/etc/passwall/acl/default/TCP.log",
+		"/tmp/etc/passwall/acl/default/UDP.log",
+		"/tmp/etc/passwall/SOCKS_TCP.log"
+	}
+	local content = {}
+	for _, path in ipairs(paths) do
+		if fs.access(path) then
+			content[#content + 1] = "===== " .. path .. " =====\n" .. luci.sys.exec("tail -n 5000 " .. path)
+		end
+	end
+	http.write(table.concat(content, "\n"))
+end
+
 function clear_log()
 	luci.sys.call("echo '' > /tmp/log/passwall.log")
 end
 
 function index_status()
 	local e = {}
+	local zashboard_port = tonumber(uci:get(appname, "@global[0]", "zashboard_port") or "9090") or 9090
 	local dns_shunt = uci:get(appname, "@global[0]", "dns_shunt") or "dnsmasq"
 	if dns_shunt == "smartdns" then
 		e.dns_mode_status = luci.sys.call("pidof smartdns >/dev/null") == 0
@@ -315,6 +333,7 @@ function index_status()
 	end
 
 	e["tcp_node_status"] = luci.sys.call("/bin/busybox top -bn1 | grep -v 'grep' | grep '/tmp/etc/passwall/bin/' | grep 'default' | grep 'TCP' >/dev/null") == 0
+	e["zashboard_status"] = luci.sys.call("netstat -lnpt 2>/dev/null | grep -q ':" .. zashboard_port .. " '") == 0
 
 	if (uci:get(appname, "@global[0]", "udp_node") or "nil") == "tcp" then
 		e["udp_node_status"] = e["tcp_node_status"]
@@ -322,6 +341,13 @@ function index_status()
 		e["udp_node_status"] = luci.sys.call("/bin/busybox top -bn1 | grep -v 'grep' | grep '/tmp/etc/passwall/bin/' | grep 'default' | grep 'UDP' >/dev/null") == 0
 	end
 	http_write_json(e)
+end
+
+function zashboard_status()
+	local port = tonumber(uci:get(appname, "@global[0]", "zashboard_port") or "9090") or 9090
+	local secret = uci:get(appname, "@global[0]", "zashboard_secret") or ""
+	local status = luci.sys.call("netstat -lnpt 2>/dev/null | grep -q ':" .. port .. " '") == 0
+	http_write_json({ status = status, port = port, secret = secret })
 end
 
 function haproxy_status()

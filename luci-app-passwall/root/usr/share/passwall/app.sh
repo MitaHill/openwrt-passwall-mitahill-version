@@ -99,7 +99,7 @@ run_ipt2socks() {
 run_singbox() {
 	local flag type node tcp_redir_port tcp_proxy_way udp_redir_port socks_address socks_port socks_username socks_password http_address http_port http_username http_password
 	local dns_listen_port direct_dns_query_strategy direct_dns_port direct_dns_udp_server direct_dns_tcp_server remote_dns_protocol remote_dns_udp_server remote_dns_tcp_server remote_dns_doh remote_dns_client_ip remote_fakedns remote_dns_query_strategy dns_cache dns_socks_address dns_socks_port
-	local loglevel log_file config_file server_host server_port no_run
+	local loglevel log_file config_file server_host server_port no_run zashboard_secret zashboard_port
 	eval_set_val $@
 	[ -z "$type" ] && {
 		type=$(echo $(config_n_get $node type) | tr 'A-Z' 'a-z')
@@ -117,6 +117,14 @@ run_singbox() {
 	[ -z "$loglevel" ] && local loglevel=$(config_t_get global loglevel "warn")
 	[ "$loglevel" = "warning" ] && loglevel="warn"
 	json_add_string "loglevel" "$loglevel"
+	[ -z "$zashboard_port" ] && local zashboard_port=$(config_t_get global zashboard_port "9090")
+	[ -z "$zashboard_secret" ] && local zashboard_secret=$(config_t_get global zashboard_secret)
+	if [ -z "$zashboard_secret" ]; then
+		zashboard_secret="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)"
+		[ -n "$zashboard_secret" ] && uci -q set passwall.@global[0].zashboard_secret="$zashboard_secret" && uci -q commit passwall
+	fi
+	[ -n "$zashboard_port" ] && json_add_string "zashboard_port" "$zashboard_port"
+	[ -n "$zashboard_secret" ] && json_add_string "zashboard_secret" "$zashboard_secret"
 
 	[ -n "$flag" ] && json_add_string "flag" "$flag"
 	[ -n "$node" ] && json_add_string "node" "$node"
