@@ -108,18 +108,15 @@
 	function shunt_dns_field(section, name) {
 		return "cbid.table." + section + "._" + name;
 	}
-	function ensure_hidden_field(section, name, value) {
+	function set_dns_field(section, name, value) {
 		let id = shunt_dns_field(section, name);
 		let input = document.getElementById(id);
 		if (!input) {
-			input = document.createElement("input");
-			input.type = "hidden";
-			input.id = id;
-			input.name = id;
-			const form = document.querySelector("form");
-			(form || document.body).appendChild(input);
+			alert("<%:DNS settings save failed, please refresh this page and try again.%>");
+			return false;
 		}
 		input.value = value;
+		return true;
 	}
 	function update_dns_button(btn, global, protocol, strategy, server) {
 		btn.dataset.global = global;
@@ -158,11 +155,10 @@
 		const strategy = document.getElementById("shunt-dns-strategy").value || "";
 		const server = document.getElementById("shunt-dns-server").value || "https://1.1.1.1/dns-query";
 		if (!section) return;
-		ensure_hidden_field(section, "dns", "1");
-		ensure_hidden_field(section, "dns_global", global);
-		ensure_hidden_field(section, "dns_protocol", protocol);
-		ensure_hidden_field(section, "dns_strategy", strategy);
-		ensure_hidden_field(section, "dns_server", server);
+		if (!set_dns_field(section, "dns_global", global)) return;
+		if (!set_dns_field(section, "dns_protocol", protocol)) return;
+		if (!set_dns_field(section, "dns_strategy", strategy)) return;
+		if (!set_dns_field(section, "dns_server", server)) return;
 		const btn = document.querySelector('.shunt-dns-edit[data-section="' + section + '"]');
 		if (btn) update_dns_button(btn, global, protocol, strategy, server);
 		close_dns_modal();

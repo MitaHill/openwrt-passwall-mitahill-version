@@ -127,10 +127,6 @@ local function write_rule_dns_options(section)
 	end
 
 	local prefix = "cbid.table." .. section .. "."
-	if not http.formvalue(prefix .. "_dns") then
-		return
-	end
-
 	local global = http.formvalue(prefix .. "_dns_global") or "1"
 	local protocol = http.formvalue(prefix .. "_dns_protocol") or "doh"
 	local strategy = http.formvalue(prefix .. "_dns_strategy") or ""
@@ -244,12 +240,28 @@ dns_button.cfgvalue = function(self, section)
 		text = string.format("%s: %s / %s", translate("Custom"), protocol:upper(), strategy_text)
 	end
 	return string.format(
-		'<input type="button" class="btn cbi-button cbi-button-edit shunt-dns-edit" value="%s" data-section="%s" data-global="%s" data-protocol="%s" data-strategy="%s" data-server="%s" />',
+		'<input type="button" class="btn cbi-button cbi-button-edit shunt-dns-edit" value="%s" data-section="%s" data-global="%s" data-protocol="%s" data-strategy="%s" data-server="%s" />'
+		.. '<input type="hidden" id="cbid.table.%s._dns_global" name="cbid.table.%s._dns_global" value="%s" />'
+		.. '<input type="hidden" id="cbid.table.%s._dns_protocol" name="cbid.table.%s._dns_protocol" value="%s" />'
+		.. '<input type="hidden" id="cbid.table.%s._dns_strategy" name="cbid.table.%s._dns_strategy" value="%s" />'
+		.. '<input type="hidden" id="cbid.table.%s._dns_server" name="cbid.table.%s._dns_server" value="%s" />',
 		html_attr(text),
 		html_attr(section),
 		html_attr(global),
 		html_attr(protocol),
 		html_attr(strategy),
+		html_attr(server),
+		html_attr(section),
+		html_attr(section),
+		html_attr(global),
+		html_attr(section),
+		html_attr(section),
+		html_attr(protocol),
+		html_attr(section),
+		html_attr(section),
+		html_attr(strategy),
+		html_attr(section),
+		html_attr(section),
 		html_attr(server)
 		)
 	end

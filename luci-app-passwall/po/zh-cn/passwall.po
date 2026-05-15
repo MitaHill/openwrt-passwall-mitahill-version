@@ -2143,3 +2143,6 @@ msgstr "并发隧道连接数"
 
 msgid "Processing, please wait…"
 msgstr "正在处理，请稍候…"
+
+msgid "DNS settings save failed, please refresh this page and try again."
+msgstr "DNS 设置保存失败，请刷新页面后重试。"
