@@ -45,8 +45,17 @@ m.description = string.format(
 
 m.on_before_save = function(self)
 	m:set("@global[0]", "flush_set", "1")
-	local global = luci.http.formvalue("cbid." .. appname .. "." .. node_id .. "." .. prefix .. "global")
-	if global ~= "0" then
+	local global_option = prefix .. "global"
+	local global_cbid = "cbid." .. appname .. "." .. node_id .. "." .. global_option
+	local global_exists = luci.http.formvalue("cbi.cbe." .. appname .. "." .. node_id .. "." .. global_option)
+	local use_global
+	-- LuCI Flag 未勾选时没有 cbid 值，只有 cbi.cbe 存在标记；不能把 nil 当成“使用全局”。
+	if global_exists then
+		use_global = luci.http.formvalue(global_cbid) ~= nil
+	else
+		use_global = (m:get(node_id, global_option) or "1") ~= "0"
+	end
+	if use_global then
 		m:del(node_id, prefix .. "protocol")
 		m:del(node_id, prefix .. "strategy")
 		m:del(node_id, prefix .. "server")
@@ -88,13 +97,14 @@ local function add_server_field(option, protocols, presets, default_value)
 	o.combobox_manual = translate("Custom")
 	o.description = translate("Select a preset server or enter a custom DNS server address.")
 	o.rmempty = true
+	o.forcewrite = true
 	o.cfgvalue = function(self, section)
 		return m:get(node_id, prefix .. "server") or default_value
 	end
 	o.write = function(self, section, value)
 		value = api.trim(value or "")
 		if value ~= "" then
-			m:set(node_id, prefix .. "server", value)
+			return m:set(node_id, prefix .. "server", value)
 		end
 	end
 	o.remove = function(self, section)
