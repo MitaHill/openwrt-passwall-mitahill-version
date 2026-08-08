@@ -130,7 +130,7 @@ jobs:
           - url_sdk: https://downloads.openwrt.org/releases/24.10.5/targets/x86/64/openwrt-sdk-24.10.5-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
             ver: "23.05-24.10"
 
-          - url_sdk: https://downloads.openwrt.org/snapshots/targets/x86/64/openwrt-sdk-x86-64_gcc-14.3.0_musl.Linux-x86_64.tar.zst
+          - url_sdk: https://downloads.openwrt.org/snapshots/targets/x86/64/
             ver: "25.12+"
     steps:
       - name: Install packages
@@ -151,8 +151,21 @@ jobs:
 
       - name: Initialization environment
         run: |
-          wget ${{ matrix.url_sdk }}
-          file_name=$(echo ${{ matrix.url_sdk }} | awk -F/ '{print $NF}')
+          sdk_url="${{ matrix.url_sdk }}"
+          case "$sdk_url" in
+            */)
+              sdk_info=$(wget -qO- "${sdk_url}sha256sums" | awk '$2 ~ /^\*openwrt-sdk-x86-64_.*\.tar\.(xz|zst)$/ {sub(/^\*/, "", $2); print $1, $2; exit}')
+              sdk_checksum=${sdk_info%% *}
+              file_name=${sdk_info#* }
+              [ -n "$sdk_checksum" ] && [ -n "$file_name" ] || { echo "Snapshot SDK not found"; exit 1; }
+              wget "${sdk_url}${file_name}"
+              echo "${sdk_checksum}  ${file_name}" | sha256sum -c -
+            ;;
+            *)
+              wget "$sdk_url"
+              file_name=$(echo "$sdk_url" | awk -F/ '{print $NF}')
+            ;;
+          esac
           mkdir sdk
           if [[ $file_name == *.tar.xz ]]; then
             tar -xJf $file_name -C ./sdk --strip-components=1
