@@ -220,6 +220,9 @@ table td, .table .td {
 	let auto_detection_time = "<%=api.uci_get_type("global_other", "auto_detection_time", "0")%>"
 	let show_node_info = "<%=api.uci_get_type("global_other", "show_node_info", "0")%>"
 	var ajaxList = [];
+	var probeQueue = [];
+	var probeRunning = false;
+	var activeProbeXhr = null;
 
 	var ajax = {
 		post: function(url, data, fn_success, timeout, fn_timeout) {
@@ -276,6 +279,8 @@ table td, .table .td {
 	function ajaxAbortAll() {
 		ajaxList.forEach(xhr => xhr.abort());
 		ajaxList = [];
+		probeQueue = [];
+		if (activeProbeXhr) activeProbeXhr.abort();
 	}
 
 	function to_add_node() {
@@ -834,6 +839,125 @@ table td, .table .td {
 		}
 	}
 
+	function queueProbe(task) {
+		probeQueue.push(task);
+		if (!probeRunning) runProbeQueue();
+	}
+
+	async function runProbeQueue() {
+		probeRunning = true;
+		while (probeQueue.length > 0) {
+			await probeQueue.shift()();
+		}
+		probeRunning = false;
+	}
+
+	function probeRequest(url, data, timeout) {
+		return new Promise((resolve) => {
+			const xhr = new XMLHttpRequest();
+			let finished = false;
+			const finish = (result) => {
+				if (finished) return;
+				finished = true;
+				if (activeProbeXhr === xhr) activeProbeXhr = null;
+				resolve(result);
+			};
+			xhr.open("POST", url, true);
+			xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+			xhr.timeout = timeout;
+			xhr.onload = function() {
+				let result = null;
+				if (xhr.status == 200 || xhr.status == 304) {
+					try { result = JSON.parse(xhr.responseText); } catch (e) {}
+				}
+				finish(result);
+			};
+			xhr.onerror = xhr.onabort = xhr.ontimeout = function() { finish(null); };
+			activeProbeXhr = xhr;
+			xhr.send(ajax.encode(data));
+		});
+	}
+
+	function setPingResult(dom, cbi_id, type, result) {
+		let color = "red";
+		let text = "<%:Timeout%>";
+		if (result && result.ping != null && result.ping.trim() !== "") {
+			const value = parseInt(result.ping);
+			text = result.ping + " ms";
+			if (value < 100) color = "green";
+			else if (value < 200) color = "#fb9a05";
+		}
+		dom.innerText = text;
+		dom.style.color = color;
+		dom.dataset.busy = "0";
+		dom.onclick = function() { ping_node(cbi_id, this, type); };
+	}
+
+	function setUrltestResult(dom, cbi_id, result) {
+		let color = "red";
+		let text = "<%:Timeout%>";
+		if (result && result.use_time != null && result.use_time.trim() !== "") {
+			const value = parseInt(result.use_time);
+			text = value + " ms";
+			if (value < 1000) color = "green";
+			else if (value < 2000) color = "#fb9a05";
+		}
+		dom.innerText = text;
+		dom.style.color = color;
+		dom.dataset.busy = "0";
+		dom.onclick = function() { urltest_node(cbi_id, this); };
+	}
+
+	urltest_node = function(cbi_id, dom) {
+		if (!cbi_id || dom.dataset.busy == "1") return;
+		dom.dataset.busy = "1";
+		dom.style.color = "";
+		dom.innerText = "<%:Check...%>";
+		queueProbe(async function() {
+			setUrltestResult(dom, cbi_id, await probeRequest('<%=api.url("urltest_node")%>', { id: cbi_id }, 45000));
+		});
+	};
+
+	ping_node = function(cbi_id, dom, type) {
+		if (!cbi_id || dom.dataset.busy == "1") return;
+		const full = get_address_full(cbi_id);
+		if (!full.address || (type == "tcping" && !full.port)) return;
+		dom.dataset.busy = "1";
+		dom.style.color = "";
+		dom.innerText = "<%:Check...%>";
+		queueProbe(async function() {
+			setPingResult(dom, cbi_id, type, await probeRequest('<%=api.url("ping_node")%>', {
+				address: full.address,
+				port: full.port,
+				type: type
+			}, 5000));
+		});
+	};
+
+	function queueAllTests() {
+		document.querySelectorAll("tr.cbi-section-table-row").forEach(function(row) {
+			const cbi_id = row.id.replace("cbi-<%=appname%>-", "");
+			const full = get_address_full(cbi_id);
+			const ping = row.querySelector(".ping_value a");
+			const tcping = row.querySelector(".tcping_value a");
+			const urltest = row.querySelector(".urltest_value a");
+			if (ping && full.address) ping_node(cbi_id, ping, "icmp");
+			if (tcping && full.address && full.port) ping_node(cbi_id, tcping, "tcping");
+			if (urltest) urltest_node(cbi_id, urltest);
+		});
+	}
+
+	pingAllNodes = function() {
+		if (auto_detection_time == "all") queueAllTests();
+		else if (auto_detection_time == "icmp" || auto_detection_time == "tcping") {
+			const values = document.getElementsByClassName(auto_detection_time == "tcping" ? "tcping_value" : "ping_value");
+			for (let i = 0; i < values.length; i++) ping_node(values[i].getAttribute("cbiid"), values[i].firstElementChild, auto_detection_time);
+		} else if (auto_detection_time == "urltest") {
+			const values = document.getElementsByClassName("urltest_value");
+			for (let i = 0; i < values.length; i++) urltest_node(values[i].getAttribute("cbiid"), values[i].firstElementChild);
+		}
+	};
+
 	function arraysEqual(a, b) {
 		if (a === b) return true;
 		if (a == null || b == null) return false;
@@ -1057,19 +1181,19 @@ table td, .table .td {
 						var newDom = node_template.cloneNode(true);
 						newDom.classList.add("cbi-rowstyle-" + (i % 2 + 1));
 						var innerHTML = newDom.innerHTML;
-						if (auto_detection_time != "icmp" && o["address"] && o["port"]) {
+						if (auto_detection_time != "icmp" && auto_detection_time != "all" && o["address"] && o["port"]) {
 							innerHTML = innerHTML.split("{{ping}}").join('<span class="ping"><a href="javascript:void(0)" onclick="javascript:ping_node(\'{{id}}\', this, \'icmp\')"><%:Test%></a></span>');
 						} else {
 							innerHTML = innerHTML.split("{{ping}}").join('<span class="ping_value" cbiid="{{id}}"><a href="javascript:void(0)" style="color:inherit">---</a></span>');
 						}
-						if (auto_detection_time != "tcping" && o["address"] && o["port"]) {
+						if (auto_detection_time != "tcping" && auto_detection_time != "all" && o["address"] && o["port"]) {
 							innerHTML = innerHTML.split("{{tcping}}").join('<span class="ping"><a href="javascript:void(0)" onclick="javascript:ping_node(\'{{id}}\', this, \'tcping\')"><%:Test%></a></span>');
 						} else {
 							innerHTML = innerHTML.split("{{tcping}}").join('<span class="tcping_value" cbiid="{{id}}"><a href="javascript:void(0)" style="color:inherit">---</a></span>');
 						}
 						if (o["protocol"] && o["protocol"] === '_shunt') {
 							innerHTML = innerHTML.split("{{url_test}}").join('<span class="ping" cbiid="{{id}}">---</span>');
-						} else if (auto_detection_time == "urltest") {
+						} else if (auto_detection_time == "urltest" || auto_detection_time == "all") {
 							innerHTML = innerHTML.split("{{url_test}}").join('<span class="urltest_value" cbiid="{{id}}"><a href="javascript:void(0)" style="color:inherit" title="<%:TLS handshake test, latency for reference only%>">---</a></span>');
 						} else {
 							innerHTML = innerHTML.split("{{url_test}}").join('<span class="ping"><a href="javascript:void(0)" onclick="javascript:urltest_node(\'{{id}}\', this)" title="<%:TLS handshake test, latency for reference only%>"><%:Test%></a></span>');

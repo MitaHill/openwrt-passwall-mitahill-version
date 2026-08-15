@@ -15,6 +15,7 @@ o:value("0", translate("Close"))
 o:value("icmp", "Ping")
 o:value("tcping", "TCP Ping")
 o:value("urltest", "URL Test")
+o:value("all", translate("All Tests"))
 
 o = s:option(Flag, "show_node_info", translate("Show server address and port"))
 o.default = "0"
