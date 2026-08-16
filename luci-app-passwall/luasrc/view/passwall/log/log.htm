@@ -52,12 +52,13 @@ local api = require "luci.passwall.api"
 			var separator = line.indexOf(" ｜");
 			var prefix = separator >= 0 ? line.substring(0, separator) : "Core";
 			var message = separator >= 0 ? line.substring(separator + 2) : line;
+			var parts = message.match(/^(\+\d{4}\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s+\S+\s+\[[^\]]+\])\s+(.+)$/);
 			var prefix_view = document.createElement("div");
 			prefix_view.className = "core-log-prefix";
-			prefix_view.textContent = prefix;
+			prefix_view.textContent = parts ? prefix + " " + parts[1] : prefix;
 			var message_view = document.createElement("div");
 			message_view.className = "core-log-message";
-			message_view.textContent = message;
+			message_view.textContent = parts ? parts[2] : message;
 			var divider = document.createElement("div");
 			divider.className = "core-log-divider";
 			divider.textContent = "------";
@@ -82,7 +83,7 @@ local api = require "luci.passwall.api"
 				} else {
 					log_view.value = "";
 				}
-				scrollToBottom(log_view);
+				scrollToTop(log_view);
 			}
 		});
 	}
