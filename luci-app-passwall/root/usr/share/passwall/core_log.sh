@@ -6,16 +6,37 @@ CORE_LOG_MAX_SIZE=1048576
 CORE_LOG_KEEP_LINES=10000
 CORE_LOG_LOCK=/tmp/lock/${CONFIG}_core_log_rotate.lock
 
+acquire_log_lock() {
+	local lock_file="$1" lock_pid
+	mkdir "$lock_file" 2>/dev/null && {
+		echo $$ > "$lock_file/pid"
+		return 0
+	}
+	[ -f "$lock_file/pid" ] && read -r lock_pid < "$lock_file/pid"
+	if [ -n "$lock_pid" ] && kill -0 "$lock_pid" 2>/dev/null; then
+		return 1
+	fi
+	rm -f "$lock_file/pid"
+	rmdir "$lock_file" 2>/dev/null || return 1
+	mkdir "$lock_file" 2>/dev/null || return 1
+	echo $$ > "$lock_file/pid"
+}
+
+release_log_lock() {
+	rm -f "$1/pid"
+	rmdir "$1" 2>/dev/null
+}
+
 trim_core_log() {
 	[ -f "$CORE_LOG_FILE" ] || return
 	[ "$(wc -c < "$CORE_LOG_FILE")" -gt "$CORE_LOG_MAX_SIZE" ] || return
-	mkdir "$CORE_LOG_LOCK" 2>/dev/null || return
+	acquire_log_lock "$CORE_LOG_LOCK" || return
 	if [ "$(wc -c < "$CORE_LOG_FILE")" -gt "$CORE_LOG_MAX_SIZE" ]; then
 		tmp_file="${CORE_LOG_FILE}.tmp.$$"
 		tail -n "$CORE_LOG_KEEP_LINES" "$CORE_LOG_FILE" > "$tmp_file" && mv -f "$tmp_file" "$CORE_LOG_FILE"
 		rm -f "$tmp_file"
 	fi
-	rmdir "$CORE_LOG_LOCK" 2>/dev/null
+	release_log_lock "$CORE_LOG_LOCK"
 }
 
 core_type="$1"

@@ -25,18 +25,39 @@ echolog() {
 	trim_log "$LOG_FILE"
 }
 
+acquire_log_lock() {
+	local lock_file="$1" lock_pid
+	mkdir "$lock_file" 2>/dev/null && {
+		echo $$ > "$lock_file/pid"
+		return 0
+	}
+	[ -f "$lock_file/pid" ] && read -r lock_pid < "$lock_file/pid"
+	if [ -n "$lock_pid" ] && kill -0 "$lock_pid" 2>/dev/null; then
+		return 1
+	fi
+	rm -f "$lock_file/pid"
+	rmdir "$lock_file" 2>/dev/null || return 1
+	mkdir "$lock_file" 2>/dev/null || return 1
+	echo $$ > "$lock_file/pid"
+}
+
+release_log_lock() {
+	rm -f "$1/pid"
+	rmdir "$1" 2>/dev/null
+}
+
 trim_log() {
 	local log_file="$1"
 	local lock_file="${LOCK_PATH}/${CONFIG}_log_rotate.lock"
 	[ -f "$log_file" ] || return
 	[ "$(wc -c < "$log_file")" -gt "$LOG_MAX_SIZE" ] || return
-	mkdir "$lock_file" 2>/dev/null || return
+	acquire_log_lock "$lock_file" || return
 	if [ "$(wc -c < "$log_file")" -gt "$LOG_MAX_SIZE" ]; then
 		local tmp_file="${log_file}.tmp.$$"
 		tail -n "$LOG_KEEP_LINES" "$log_file" > "$tmp_file" && mv -f "$tmp_file" "$log_file"
 		rm -f "$tmp_file"
 	fi
-	rmdir "$lock_file" 2>/dev/null
+	release_log_lock "$lock_file"
 }
 
 clean_log() {
