@@ -108,14 +108,9 @@ run_singbox() {
 		[ "$type" != "sing-box" ] && [ -n "$SINGBOX_BIN" ] && type="sing-box"
 	}
 	[ -z "$type" ] && return 1
-	[ -n "$log_file" ] || local log_file="/dev/null"
 	json_init
-	if [ "$log_file" = "/dev/null" ]; then
-		json_add_string "log" "0"
-	else
-		json_add_string "log" "1"
-		json_add_string "logfile" "${log_file}"
-	fi
+	json_add_string "log" "1"
+	json_add_string "logfile" "/dev/stdout"
 	[ -z "$loglevel" ] && local loglevel=$(config_t_get global loglevel "warn")
 	[ "$loglevel" = "warning" ] && loglevel="warn"
 	json_add_string "loglevel" "$loglevel"
@@ -188,16 +183,15 @@ run_singbox() {
 	lua $UTIL_SINGBOX gen_config "${_json_arg}" > $config_file
 	[ -n "$no_run" ] && return
 
-	local test_log_file=$log_file
-	[ "$test_log_file" = "/dev/null" ] && test_log_file="${TMP_PATH}/${config_file##*/}_test.log"
+	local test_log_file="${TMP_PATH}/${config_file##*/}_test.log"
 	$SINGBOX_BIN check -c "$config_file" > $test_log_file 2>&1; local status=$?
 	if [ "${status}" = 0 ]; then
-		ln_run "$SINGBOX_BIN" "sing-box" "${log_file}" run -c "$config_file"
+		ln_run_core "$SINGBOX_BIN" "sing-box" "sing-box" "$flag" "$node" run -c "$config_file"
 	else
 		echolog "Sing-box 配置文件 $config_file 校验有误，进程启动失败，错误信息："
 		cat ${test_log_file} >> ${LOG_FILE}
 	fi
-	[ "$test_log_file" != "$log_file" ] && rm -f "${test_log_file}"
+	rm -f "${test_log_file}"
 }
 
 run_xray() {
@@ -211,7 +205,6 @@ run_xray() {
 	}
 	[ -z "$type" ] && return 1
 	json_init
-	[ -n "$log_file" ] || local log_file="/dev/null"
 	[ -z "$loglevel" ] && local loglevel=$(config_t_get global loglevel "warning")
 	[ -n "$flag" ] && json_add_string "flag" "$flag"
 	[ -n "$node" ] && json_add_string "node" "$node"
@@ -283,21 +276,21 @@ run_xray() {
 		;;
 	esac
 	json_add_string "loglevel" "$loglevel"
+	json_add_string "logfile" "/dev/stdout"
 	[ -n "$no_run" ] && json_add_string "no_run" "1"
 	local _json_arg="$(json_dump)"
 	lua $UTIL_XRAY gen_config "${_json_arg}" > $config_file
 	[ -n "$no_run" ] && return
 
-	local test_log_file=$log_file
-	[ "$test_log_file" = "/dev/null" ] && test_log_file="${TMP_PATH}/${config_file##*/}_test.log"
+	local test_log_file="${TMP_PATH}/${config_file##*/}_test.log"
 	$XRAY_BIN run -test -c "$config_file" > $test_log_file; local status=$?
 	if [ "${status}" = 0 ]; then
-		ln_run "$XRAY_BIN" "xray" "${log_file}" run -c "$config_file"
+		ln_run_core "$XRAY_BIN" "xray" "xray" "$flag" "$node" run -c "$config_file"
 	else
 		echolog "Xray 配置文件 $config_file 校验有误，进程启动失败，错误信息："
 		cat ${test_log_file} >> ${LOG_FILE}
 	fi
-	[ "$test_log_file" != "$log_file" ] && rm -f "${test_log_file}"
+	rm -f "${test_log_file}"
 }
 
 run_dns2socks() {
@@ -437,8 +430,10 @@ run_socks() {
 			local util="${UTIL_XRAY}"
 		fi
 		[ -n "${bin}" ] && [ -n "${util}" ] && {
+			json_add_string "loglevel" "$(config_t_get global loglevel "warning")"
+			json_add_string "logfile" "/dev/stdout"
 			lua ${util} gen_proto_config "$(json_dump)" > $config_file
-			[ -n "$no_run" ] || ln_run "$bin" $type $log_file run -c "$config_file"
+			[ -n "$no_run" ] || ln_run_core "$bin" "$type" "$type" "$flag" "$node" run -c "$config_file"
 		}
 		unset bin util
 	;;
@@ -551,8 +546,10 @@ run_socks() {
 			local util="${UTIL_XRAY}"
 		fi
 		[ -n "${bin}" ] && [ -n "${util}" ] && {
+			json_add_string "loglevel" "$(config_t_get global loglevel "warning")"
+			json_add_string "logfile" "/dev/stdout"
 			lua ${util} gen_proto_config "$(json_dump)" > $http_config_file
-			[ -n "$no_run" ] || ln_run "$bin" $type /dev/null run -c "$http_config_file"
+			[ -n "$no_run" ] || ln_run_core "$bin" "$type" "$type" "$flag" "$node" run -c "$http_config_file"
 		}
 		unset bin util
 	}

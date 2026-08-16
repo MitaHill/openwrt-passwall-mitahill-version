@@ -73,6 +73,8 @@ function index()
 	entry({"admin", "services", appname, "get_chinadns_log"}, call("get_chinadns_log")).leaf = true
 	entry({"admin", "services", appname, "get_log"}, call("get_log")).leaf = true
 	entry({"admin", "services", appname, "clear_log"}, call("clear_log")).leaf = true
+	entry({"admin", "services", appname, "get_core_log"}, call("get_core_log")).leaf = true
+	entry({"admin", "services", appname, "clear_core_log"}, call("clear_core_log")).leaf = true
 	entry({"admin", "services", appname, "index_status"}, call("index_status")).leaf = true
 	entry({"admin", "services", appname, "haproxy_status"}, call("haproxy_status")).leaf = true
 	entry({"admin", "services", appname, "socks_status"}, call("socks_status")).leaf = true
@@ -295,6 +297,14 @@ end
 
 function clear_log()
 	luci.sys.call("echo '' > /tmp/log/passwall.log")
+end
+
+function get_core_log()
+	http.write(luci.sys.exec("[ -f '/tmp/log/passwall_core.log' ] && tail -n 20000 /tmp/log/passwall_core.log"))
+end
+
+function clear_core_log()
+	luci.sys.call("echo '' > /tmp/log/passwall_core.log")
 end
 
 function index_status()

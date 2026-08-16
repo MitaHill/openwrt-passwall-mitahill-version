@@ -1381,6 +1381,12 @@ msgstr "GeoIP: 形如'geoip:cn'，必须以geoip:（小写）开头，后面跟�
 msgid "Clear logs"
 msgstr "清空日志"
 
+msgid "Program Logs"
+msgstr "程序日志"
+
+msgid "Core Logs"
+msgstr "核心日志"
+
 msgid "Only recommend to use with VLESS-TCP-XTLS-Vision."
 msgstr "只推荐与 VLESS-TCP-XTLS-Vision 搭配使用。"
 

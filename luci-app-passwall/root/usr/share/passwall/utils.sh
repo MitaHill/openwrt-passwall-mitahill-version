@@ -462,6 +462,31 @@ ln_run() {
 	echo "${file_func:-echolog "  - ${ln_name}"} $@ >${output}" > $TMP_SCRIPT_FUNC_PATH/$process_count
 }
 
+ln_run_core() {
+	local file_func=${1}
+	local ln_name=${2}
+	local core_type=${3}
+	local flag=${4}
+	local node=${5}
+	shift 5
+	[ -n "$flag" ] || flag="-"
+	[ -n "$node" ] || node="-"
+
+	if [ "${file_func%%/*}" != "${file_func}" ]; then
+		[ ! -L "${TMP_BIN_PATH}/${ln_name}" ] && ln -s "${file_func}" "${TMP_BIN_PATH}/${ln_name}" >/dev/null 2>&1
+		file_func="${TMP_BIN_PATH}/${ln_name}"
+		[ -x "${file_func}" ] || echolog "  - $(readlink ${file_func}) 没有执行权限，无法启动：${file_func} $*"
+	fi
+	[ -n "${file_func}" ] || echolog "  - 找不到 ${ln_name}，无法启动..."
+
+	${APP_PATH}/core_log.sh "${core_type}" "${flag}" "${node}" "${file_func}" "$@" &
+
+	[ "$NO_REC_PROCESS" = "1" ] && return
+	process_count=$(ls $TMP_SCRIPT_FUNC_PATH | wc -l)
+	process_count=$((process_count + 1))
+	echo "${APP_PATH}/core_log.sh ${core_type} ${flag} ${node} ${file_func} $@ >/dev/null" > $TMP_SCRIPT_FUNC_PATH/$process_count
+}
+
 is_socks_wrap() {
 	case "$1" in
 		Socks_*) return 0 ;;

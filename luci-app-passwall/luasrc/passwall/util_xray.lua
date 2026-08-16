@@ -812,6 +812,7 @@ function gen_config(var)
 	local dns_socks_address = var["dns_socks_address"]
 	local dns_socks_port = var["dns_socks_port"]
 	local loglevel = var["loglevel"] or "warning"
+	local logfile = var["logfile"] or "/dev/stdout"
 	local no_run = var["no_run"]
 
 	local dns_domain_rules = {}
@@ -1815,7 +1816,7 @@ function gen_config(var)
 	if inbounds or outbounds then
 		local config = {
 			log = {
-				-- error = string.format("/tmp/etc/%s/%s.log", appname, node[".name"]),
+				error = logfile,
 				loglevel = loglevel
 			},
 			-- DNS
@@ -1894,6 +1895,8 @@ function gen_config(var)
 end
 
 function gen_proto_config(var)
+	local loglevel = var["loglevel"] or "warning"
+	local logfile = var["logfile"] or "/dev/stdout"
 	local local_socks_address = var["local_socks_address"] or "0.0.0.0"
 	local local_socks_port = var["local_socks_port"]
 	local local_socks_username = var["local_socks_username"]
@@ -1986,7 +1989,8 @@ function gen_proto_config(var)
 
 	local config = {
 		log = {
-			loglevel = "warning"
+			error = logfile,
+			loglevel = loglevel
 		},
 		-- 传入连接
 		inbounds = inbounds,
