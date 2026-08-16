@@ -1,12 +1,33 @@
 <%
 local api = require "luci.passwall.api"
 -%>
+<style type="text/css">
+	#core_log_view {
+		box-sizing: border-box;
+		width: 100%;
+		height: 720px;
+		margin-top: 10px;
+		padding: 8px;
+		overflow-y: auto;
+		border: 1px solid #ccc;
+		font-family: monospace;
+		font-size: 13px;
+		line-height: 1.5;
+	}
+	.core-log-prefix { font-weight: bold; }
+	.core-log-message { white-space: pre-wrap; overflow-wrap: anywhere; }
+	.core-log-divider { color: #999; white-space: pre; }
+	@media (max-width: 767px) {
+		#core_log_view { height: 60vh; font-size: 12px; }
+	}
+</style>
 <script type="text/javascript">
 	//<![CDATA[
 	var first_load_done = {};
+	var last_core_log = null;
 
-	function scrollToBottom(log_textarea) {
-		log_textarea.scrollTop = log_textarea.scrollHeight;
+	function scrollToBottom(log_view) {
+		log_view.scrollTop = log_view.scrollHeight;
 	}
 
 	function showLog(type) {
@@ -16,13 +37,49 @@ local api = require "luci.passwall.api"
 		});
 	}
 
+	function getLogView(type) {
+		return document.getElementById(type == "core" ? "core_log_view" : "program_log_textarea");
+	}
+
+	function renderCoreLog(log_view, content) {
+		if (last_core_log === content) return false;
+		last_core_log = content;
+		var fragment = document.createDocumentFragment();
+		content.split(/\r?\n/).forEach(function(line) {
+			if (!line) return;
+			var separator = line.indexOf(" ｜");
+			var prefix = separator >= 0 ? line.substring(0, separator) : "Core";
+			var message = separator >= 0 ? line.substring(separator + 2) : line;
+			var prefix_view = document.createElement("div");
+			prefix_view.className = "core-log-prefix";
+			prefix_view.textContent = prefix;
+			var message_view = document.createElement("div");
+			message_view.className = "core-log-message";
+			message_view.textContent = message;
+			var divider = document.createElement("div");
+			divider.className = "core-log-divider";
+			divider.textContent = "----------------------------------------";
+			fragment.appendChild(prefix_view);
+			fragment.appendChild(message_view);
+			fragment.appendChild(divider);
+		});
+		while (log_view.firstChild) log_view.removeChild(log_view.firstChild);
+		log_view.appendChild(fragment);
+		return true;
+	}
+
 	function clearlog(type) {
 		var url = type == "core" ? '<%=api.url("clear_core_log")%>' : '<%=api.url("clear_log")%>';
 		XHR.get(url, null, function(x) {
-			var log_textarea = document.getElementById(type + "_log_textarea");
-			if (x && x.status == 200 && log_textarea) {
-				log_textarea.value = "";
-				scrollToBottom(log_textarea);
+			var log_view = getLogView(type);
+			if (x && x.status == 200 && log_view) {
+				if (type == "core") {
+					last_core_log = "";
+					log_view.textContent = "";
+				} else {
+					log_view.value = "";
+				}
+				scrollToBottom(log_view);
 			}
 		});
 	}
@@ -30,11 +87,12 @@ local api = require "luci.passwall.api"
 	function pollLog(type, url) {
 		XHR.poll(5, url, null, function(x) {
 			if (x && x.status == 200) {
-				var log_textarea = document.getElementById(type + "_log_textarea");
-				var wasBottom = (log_textarea.scrollTop + log_textarea.clientHeight >= log_textarea.scrollHeight - 10);
-				log_textarea.value = x.responseText;
-				if (!first_load_done[type] || wasBottom) {
-					scrollToBottom(log_textarea);
+				var log_view = getLogView(type);
+				var wasBottom = (log_view.scrollTop + log_view.clientHeight >= log_view.scrollHeight - 10);
+				var changed = type == "core" ? renderCoreLog(log_view, x.responseText) : true;
+				if (type != "core") log_view.value = x.responseText;
+				if (changed && (!first_load_done[type] || wasBottom)) {
+					scrollToBottom(log_view);
 					first_load_done[type] = true;
 				}
 			}
@@ -54,6 +112,6 @@ local api = require "luci.passwall.api"
 	</div>
 	<div id="core_log" style="display: none;margin-top: 10px;">
 		<input class="btn cbi-button cbi-button-remove" type="button" onclick="clearlog('core')" value="<%:Clear logs%>" />
-		<textarea id="core_log_textarea" class="cbi-input-textarea" style="width: 100%;margin-top: 10px;" data-update="change" rows="40" wrap="off" readonly="readonly"></textarea>
+		<div id="core_log_view" tabindex="0"></div>
 	</div>
 </fieldset>

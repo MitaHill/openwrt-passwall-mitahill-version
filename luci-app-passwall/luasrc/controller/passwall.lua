@@ -300,7 +300,7 @@ function clear_log()
 end
 
 function get_core_log()
-	http.write(luci.sys.exec("[ -f '/tmp/log/passwall_core.log' ] && tail -n 20000 /tmp/log/passwall_core.log"))
+	http.write(luci.sys.exec("[ -f '/tmp/log/passwall_core.log' ] && tail -n 2000 /tmp/log/passwall_core.log"))
 end
 
 function clear_core_log()
