@@ -25,12 +25,14 @@ local api = require "luci.passwall.api"
 	//<![CDATA[
 	var first_load_done = {};
 	var last_core_log = null;
+	var active_log = "program";
 
 	function scrollToBottom(log_view) {
 		log_view.scrollTop = log_view.scrollHeight;
 	}
 
 	function showLog(type) {
+		active_log = type;
 		["program", "core"].forEach(function(name) {
 			document.getElementById(name + "_log").style.display = name == type ? "block" : "none";
 			document.getElementById(name + "_log_tab").className = name == type ? "cbi-button cbi-button-apply" : "cbi-button";
@@ -68,7 +70,8 @@ local api = require "luci.passwall.api"
 		return true;
 	}
 
-	function clearlog(type) {
+	function clearlog() {
+		var type = active_log;
 		var url = type == "core" ? '<%=api.url("clear_core_log")%>' : '<%=api.url("clear_log")%>';
 		XHR.get(url, null, function(x) {
 			var log_view = getLogView(type);
@@ -104,14 +107,13 @@ local api = require "luci.passwall.api"
 	//]]>
 </script>
 <fieldset class="cbi-section" id="_log_fieldset">
+	<input class="btn cbi-button cbi-button-remove" type="button" onclick="clearlog()" value="<%:Clear logs%>" />
 	<input id="program_log_tab" class="cbi-button cbi-button-apply" type="button" onclick="showLog('program')" value="<%:Program Logs%>" />
 	<input id="core_log_tab" class="cbi-button" type="button" onclick="showLog('core')" value="<%:Core Logs%>" />
 	<div id="program_log" style="margin-top: 10px;">
-		<input class="btn cbi-button cbi-button-remove" type="button" onclick="clearlog('program')" value="<%:Clear logs%>" />
-		<textarea id="program_log_textarea" class="cbi-input-textarea" style="width: 100%;margin-top: 10px;" data-update="change" rows="40" wrap="off" readonly="readonly"></textarea>
+		<textarea id="program_log_textarea" class="cbi-input-textarea" style="width: 100%;" data-update="change" rows="40" wrap="off" readonly="readonly"></textarea>
 	</div>
 	<div id="core_log" style="display: none;margin-top: 10px;">
-		<input class="btn cbi-button cbi-button-remove" type="button" onclick="clearlog('core')" value="<%:Clear logs%>" />
 		<div id="core_log_view" tabindex="0"></div>
 	</div>
 </fieldset>
