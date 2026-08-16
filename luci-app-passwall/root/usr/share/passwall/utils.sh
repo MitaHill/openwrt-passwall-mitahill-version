@@ -8,6 +8,8 @@ TMP_PATH=/tmp/etc/${CONFIG}
 TMP_PATH2=${TMP_PATH}_tmp
 LOCK_PATH=/tmp/lock
 LOG_FILE=/tmp/log/${CONFIG}.log
+LOG_MAX_SIZE=1048576
+LOG_KEEP_LINES=10000
 TMP_ACL_PATH=${TMP_PATH}/acl
 TMP_BIN_PATH=${TMP_PATH}/bin
 TMP_IFACE_PATH=${TMP_PATH}/iface
@@ -20,14 +22,25 @@ RULES_PATH=/usr/share/${CONFIG}/rules
 echolog() {
 	local d="$(date "+%Y-%m-%d %H:%M:%S")"
 	echo -e "$d: $*" >>$LOG_FILE
+	trim_log "$LOG_FILE"
+}
+
+trim_log() {
+	local log_file="$1"
+	local lock_file="${LOCK_PATH}/${CONFIG}_log_rotate.lock"
+	[ -f "$log_file" ] || return
+	[ "$(wc -c < "$log_file")" -gt "$LOG_MAX_SIZE" ] || return
+	mkdir "$lock_file" 2>/dev/null || return
+	if [ "$(wc -c < "$log_file")" -gt "$LOG_MAX_SIZE" ]; then
+		local tmp_file="${log_file}.tmp.$$"
+		tail -n "$LOG_KEEP_LINES" "$log_file" > "$tmp_file" && mv -f "$tmp_file" "$log_file"
+		rm -f "$tmp_file"
+	fi
+	rmdir "$lock_file" 2>/dev/null
 }
 
 clean_log() {
-	logsnum=$(cat $LOG_FILE 2>/dev/null | wc -l)
-	[ "$logsnum" -gt 1000 ] && {
-		echo "" > $LOG_FILE
-		echolog "日志文件过长，清空处理！"
-	}
+	trim_log "$LOG_FILE"
 }
 
 config_get_type() {
