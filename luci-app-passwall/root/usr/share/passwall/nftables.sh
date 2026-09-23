@@ -926,7 +926,7 @@ mwan3_start() {
 		logger -t passwall "mwan3: failed to add ${FWMARK} exemption rule to mangle/mwan3_hook"
 }
 
-update_wan_sets() {
+_update_wan_sets() {
 	local log=$1
 
 	[ -z "$(command -v get_wan_ips)" ] && . "$UTILS_PATH"
@@ -945,7 +945,11 @@ update_wan_sets() {
 
 	local WAN6_IP=$(get_wan_ips ip6)
 	[ -n "${WAN6_IP}" ] && {
-		nft flush set $NFTABLE_NAME $NFTSET_WAN6
+		# IPv6 TProxy updates must retain existing WAN6 exemptions while
+		# hotplug refreshes the currently assigned addresses.
+		if [ "${PROXY_IPV6:-$(config_t_get global_forwarding ipv6_tproxy 0)}" != "1" ]; then
+			nft flush set $NFTABLE_NAME $NFTSET_WAN6
+		fi
 		echo "$WAN6_IP" | insert_nftset $NFTSET_WAN6
 		[ "$log" = "log" ] && {
 			local wan6_ip
@@ -954,6 +958,15 @@ update_wan_sets() {
 			done
 		}
 	}
+}
+
+update_wan_sets() {
+	local log=$1
+	[ -d "$LOCK_PATH" ] || mkdir -p "$LOCK_PATH"
+	(
+		flock -x 9 || exit 1
+		_update_wan_sets "$log"
+	) 9>"${LOCK_PATH}/${CONFIG}_update_wan_sets.lock"
 }
 
 set_tproxy_sysctl() {
