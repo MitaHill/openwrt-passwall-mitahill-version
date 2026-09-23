@@ -2,13 +2,14 @@
 
 本仓库是基于 [Openwrt-Passwall/openwrt-passwall](https://github.com/Openwrt-Passwall/openwrt-passwall) 的 LuCI 分支，用于快速验证功能改进与问题修补。
 
-当前分支针对已关闭的 [Openwrt-Passwall/openwrt-passwall2#665](https://github.com/Openwrt-Passwall/openwrt-passwall2/issues/665) 继续验证 IPv6 回环、核心持续满载及路由器半宕机问题，并已加入 IPv6 TProxy 更新时保留 WAN6 集合的修复。
+此前针对 [Openwrt-Passwall/openwrt-passwall2#665](https://github.com/Openwrt-Passwall/openwrt-passwall2/issues/665) 的 IPv6 回环与路由器半宕机问题所做的 WAN6 集合修复，已由上游 `e72dc624` 以更完整的方式合入，本仓库不再单独维护该改动。
 
 ## 发布状态
 
 - 默认分支：[`main`](https://github.com/MitaHill/openwrt-passwall-mitahill-version/tree/main)
-- 最新源码版本：[`26.9.16-1`](https://github.com/MitaHill/openwrt-passwall-mitahill-version/releases/tag/26.9.16-1)
-- 当前改进：IPv6 TProxy 更新保留 WAN6 集合、修复 Sing-box URLTest 前置代理落地链路、改进并串行执行节点探测
+- 最新源码版本：[`2026.9.24-1`](https://github.com/MitaHill/openwrt-passwall-mitahill-version/releases/tag/2026.9.24-1)
+- 上游基线：`e72dc624`
+- 当前改进：修复 Sing-box URLTest 前置代理落地链路、改进并串行执行节点探测
 
 后续版本请以 [最新发布页](https://github.com/MitaHill/openwrt-passwall-mitahill-version/releases/latest) 为准；发布页出现安装包后再下载。
 
