@@ -945,8 +945,8 @@ _update_wan_sets() {
 
 	local WAN6_IP=$(get_wan_ips ip6)
 	[ -n "${WAN6_IP}" ] && {
-		# IPv6 TProxy updates must retain existing WAN6 exemptions while
-		# hotplug refreshes the currently assigned addresses.
+		# WAN6_IP_RETURN matches this set and stays live across refreshes,
+		# so flushing it would expose the router's own addresses to TProxy.
 		if [ "${PROXY_IPV6:-$(config_t_get global_forwarding ipv6_tproxy 0)}" != "1" ]; then
 			nft flush set $NFTABLE_NAME $NFTSET_WAN6
 		fi
@@ -962,6 +962,7 @@ _update_wan_sets() {
 
 update_wan_sets() {
 	local log=$1
+	[ -z "$(command -v get_wan_ips)" ] && . "$UTILS_PATH"
 	[ -d "$LOCK_PATH" ] || mkdir -p "$LOCK_PATH"
 	(
 		flock -x 9 || exit 1
