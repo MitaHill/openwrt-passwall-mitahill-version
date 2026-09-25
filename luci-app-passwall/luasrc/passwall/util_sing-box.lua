@@ -1470,6 +1470,12 @@ function gen_config(var)
 					end
 				end
 				if to_node then
+					local chained_tag = outbound.tag .. " -> " .. to_node[".name"] .. (to_node.remarks and ":" .. to_node.remarks or "")
+					for _, _outbound in ipairs(outbounds_table) do
+						if _outbound.tag == chained_tag then
+							return chained_tag, last_insert_outbound
+						end
+					end
 					local to_outbound
 					if to_node.type ~= "sing-box" then
 						local tag = to_node[".name"]
@@ -1499,12 +1505,14 @@ function gen_config(var)
 						to_outbound = gen_outbound(node[".name"], to_node)
 					end
 					if to_outbound then
-						to_outbound.tag = outbound.tag .. " -> " .. to_outbound.tag
+						-- 分流规则复用相同的 URLTest 落地链路。
+						chained_tag = outbound.tag .. " -> " .. to_outbound.tag
+						to_outbound.tag = chained_tag
 						if to_node.type == "sing-box" then
 							to_outbound.detour = outbound.tag
 						end
 						table.insert(outbounds_table, to_outbound)
-						default_outTag = to_outbound.tag
+						default_outTag = chained_tag
 					end
 				end
 			end
@@ -1531,7 +1539,8 @@ function gen_config(var)
 				local outbound, exist
 				if node.protocol == "_urltest" then
 					outbound, exist = gen_urltest_outbound(node)
-					if exist then
+					-- 带落地节点时仍需要生成链式 outbound。
+					if exist and not node.chain_proxy then
 						return outbound.tag
 					end
 				elseif node.protocol == "_iface" then
@@ -1559,7 +1568,9 @@ function gen_config(var)
 				end
 				if outbound then
 					local default_outbound_tag, last_insert_outbound = set_outbound_detour(node, outbound, outbounds)
-					table.insert(outbounds, outbound)
+					if not exist then
+						table.insert(outbounds, outbound)
+					end
 					if last_insert_outbound then
 						table.insert(outbounds, last_insert_outbound)
 					end
