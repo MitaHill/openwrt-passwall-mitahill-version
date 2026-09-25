@@ -839,9 +839,6 @@ msgstr "不使用"
 msgid "All"
 msgstr "所有"
 
-msgid "All Tests"
-msgstr "全部测试"
-
 msgid "Common Use"
 msgstr "常用的"
 

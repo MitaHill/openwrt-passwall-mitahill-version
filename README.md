@@ -1,54 +1,34 @@
-# MitaHill PassWall
-
-本仓库是基于 [Openwrt-Passwall/openwrt-passwall](https://github.com/Openwrt-Passwall/openwrt-passwall) 的 LuCI 分支，用于快速验证功能改进与问题修补。
-
-此前针对 [Openwrt-Passwall/openwrt-passwall2#665](https://github.com/Openwrt-Passwall/openwrt-passwall2/issues/665) 的 IPv6 回环与路由器半宕机问题所做的 WAN6 集合修复，已由上游 `e72dc624` 以更完整的方式合入，本仓库不再单独维护该改动。
-
-## 发布状态
-
-- 默认分支：[`main`](https://github.com/MitaHill/openwrt-passwall-mitahill-version/tree/main)
-- 最新源码版本：[`2026.9.24-1`](https://github.com/MitaHill/openwrt-passwall-mitahill-version/releases/tag/2026.9.24-1)
-- 上游基线：`e72dc624`
-- 当前改进：修复 Sing-box URLTest 前置代理落地链路、改进并串行执行节点探测
-
-后续版本请以 [最新发布页](https://github.com/MitaHill/openwrt-passwall-mitahill-version/releases/latest) 为准；发布页出现安装包后再下载。
-
-## :mega: 公告
-
+## :mega:公告
 自 2026 年 6 月 1 日起，Xray Core 内部定时器已自动弃用 `allowInsecure`（跳过证书验证），并要求自签证书必须配置 `pinnedPeerCertSha256`（`pcs` 参数）。
 
 若机场使用自签证书且未提供 `pcs` 参数，节点将无法正常连接。
 
 **解决方法：**
 
-- 向机场获取 `pinnedPeerCertSha256`（`pcs` 参数）；
-- 或切换至 Sing-box Core。
+* 向机场获取 `pinnedPeerCertSha256`（`pcs` 参数）；
+* 或切换至 Sing-box Core。  
 
-## 📌 如何编译本仓库最新代码？
+## 📌如何能编译到最新代码？
 
-本仓库只提供 PassWall LuCI 代码；核心组件仍来自官方 `openwrt-passwall-packages` 仓库。
+### 方法1：
 
-### 方法 1：通过 feeds 引入
+执行 `./scripts/feeds update -a` 操作前，在 `feeds.conf.default` **顶部**插入如下代码：
 
-执行 `./scripts/feeds update -a` 前，在 `feeds.conf.default` **顶部**加入：
-
-```text
+```
 src-git passwall_packages https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git;main
-src-git passwall_luci https://github.com/MitaHill/openwrt-passwall-mitahill-version.git;main
+src-git passwall_luci https://github.com/Openwrt-Passwall/openwrt-passwall.git;main
 ```
 
-随后照常更新并安装 feeds。
+### 方法2：
 
-### 方法 2：直接克隆到源码树
-
-在 `./scripts/feeds install -a` 完成后执行：
+在 `./scripts/feeds install -a` 操作完成后，执行以下命令：
 
 ```shell
-# 移除 OpenWrt feeds 自带的核心组件
+# 移除 openwrt feeds 自带的核心库
 rm -rf feeds/packages/net/{xray-core,v2ray-geodata,sing-box,chinadns-ng,dns2socks,hysteria,ipt2socks,microsocks,naiveproxy,shadowsocks-rust,shadowsocksr-libev,simple-obfs,tcping,v2ray-plugin,xray-plugin,geoview,shadow-tls}
-git clone --branch main --single-branch https://github.com/Openwrt-Passwall/openwrt-passwall-packages package/passwall-packages
+git clone https://github.com/Openwrt-Passwall/openwrt-passwall-packages package/passwall-packages
 
-# 移除 OpenWrt feeds 自带的 LuCI 版本，并使用本仓库代码
+# 移除 openwrt feeds 过时的luci版本
 rm -rf feeds/luci/applications/luci-app-passwall
-git clone --branch main --single-branch https://github.com/MitaHill/openwrt-passwall-mitahill-version package/passwall-luci
+git clone https://github.com/Openwrt-Passwall/openwrt-passwall package/passwall-luci
 ```

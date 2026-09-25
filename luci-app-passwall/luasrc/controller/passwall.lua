@@ -14,10 +14,6 @@ local i18n = require "luci.i18n"
 local jsonStringify = luci.jsonc.stringify
 local jsonParse = luci.jsonc.parse
 
-local function shell_quote(value)
-	return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
-end
-
 function index()
 	if not nixio.fs.access("/etc/config/passwall") then
 		if nixio.fs.access("/usr/share/passwall/0_default_config") then
@@ -382,50 +378,36 @@ end
 function connect_status()
 	local e = {}
 	e.use_time = ""
-	local site = http.formvalue("type") or ""
-	local urls = {
-		aliyun = "https://www.aliyun.com",
-		google = "https://www.google.com/generate_204",
-		github = "https://github.com",
-		youtube = "https://www.youtube.com"
-	}
-	local url = urls[site]
-	if not url then
-		http_write_json(e)
-		return
-	end
-	local aliyun = site == "aliyun"
+	local url = http.formvalue("url")
+	local aliyun = string.find(url, "aliyun")
 	local chn_list = uci_get("@global[0]", "chn_list") or "direct"
 	local gfw_list = uci_get("@global[0]", "use_gfw_list") or "1"
 	local proxy_mode = uci_get("@global[0]", "tcp_proxy_mode") or "proxy"
 	local localhost_proxy = uci_get("@global[0]", "localhost_proxy") or "1"
 	local socks_server = (localhost_proxy == "0") and api.get_cache_var("GLOBAL_SOCKS_server") or ""
-	local proxy_arg = ""
+	url = "-w %{http_code}:%{time_pretransfer} " .. url
 	if socks_server and socks_server ~= "" then
-		if (chn_list == "proxy" and gfw_list == "0" and proxy_mode ~= "proxy" and aliyun) or (chn_list == "0" and gfw_list == "0" and proxy_mode == "proxy") then
+		if (chn_list == "proxy" and gfw_list == "0" and proxy_mode ~= "proxy" and aliyun ~= nil) or (chn_list == "0" and gfw_list == "0" and proxy_mode == "proxy") then
 		-- 中国列表+阿里 or 全局
-			proxy_arg = "-x " .. shell_quote("socks5h://" .. socks_server)
-		elseif not aliyun then
+			url = "-x socks5h://" .. socks_server .. " " .. url
+		elseif aliyun == nil then
 		-- 其他代理模式+阿里以外网站
-			proxy_arg = "-x " .. shell_quote("socks5h://" .. socks_server)
+			url = "-x socks5h://" .. socks_server .. " " .. url
 		end
 	end
-
-	local total_time = 0
-	local success_count = 0
-	for _ = 1, 5 do
-		local cmd = "/usr/bin/curl --connect-timeout 3 --max-time 5 -o /dev/null -I -skL -w '%{http_code}:%{time_pretransfer}' " .. proxy_arg .. " " .. shell_quote(url)
-		local result = luci.sys.exec(cmd)
-		local code, use_time_str = result:match("^(%d+):([%d%.]+)")
+	local result = luci.sys.exec('/usr/bin/curl --connect-timeout 3 --max-time 5 -o /dev/null -I -sk ' .. url)
+	local code = tonumber(luci.sys.exec("echo -n '" .. result .. "' | awk -F ':' '{print $1}'") or "0")
+	if code ~= 0 then
+		local use_time_str = luci.sys.exec("echo -n '" .. result .. "' | awk -F ':' '{print $2}'")
 		local use_time = tonumber(use_time_str)
-		if tonumber(code) ~= 0 and use_time then
-			total_time = total_time + use_time
-			success_count = success_count + 1
+		if use_time then
+			if use_time_str:find("%.") then
+				e.use_time = string.format("%.2f", use_time * 1000)
+			else
+				e.use_time = string.format("%.2f", use_time / 1000)
+			end
+			e.ping_type = "curl"
 		end
-	end
-	if success_count > 0 then
-		e.use_time = string.format("%.2f", total_time / success_count * 1000)
-		e.ping_type = "curl"
 	end
 	http_write_json(e)
 end
@@ -453,17 +435,17 @@ function urltest_node()
 	local id = http.formvalue("id")
 	local e = {}
 	e.index = index
-	if not id or id == "" then
-		http_write_json(e)
-		return
-	end
-	local result = luci.sys.exec("/usr/share/passwall/test.sh url_test_node " .. shell_quote(id) .. " " .. shell_quote("urltest_node"))
-	local code, use_time_str = result:match("^(%d+):([%d%.]+)")
-	code = tonumber(code or "0")
+	local result = luci.sys.exec(string.format("/usr/share/passwall/test.sh url_test_node %s %s", id, "urltest_node"))
+	local code = tonumber(luci.sys.exec("echo -n '" .. result .. "' | awk -F ':' '{print $1}'") or "0")
 	if code ~= 0 then
+		local use_time_str = luci.sys.exec("echo -n '" .. result .. "' | awk -F ':' '{print $2}'")
 		local use_time = tonumber(use_time_str)
 		if use_time then
-			e.use_time = string.format("%.2f", use_time * 1000)
+			if use_time_str:find("%.") then
+				e.use_time = string.format("%.2f", use_time * 1000)
+			else
+				e.use_time = string.format("%.2f", use_time / 1000)
+			end
 		end
 	end
 	http_write_json(e)

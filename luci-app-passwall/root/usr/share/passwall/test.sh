@@ -41,81 +41,35 @@ test_proxy() {
 	echo $result
 }
 
-url_test_node_cleanup() {
-	local node_id="$1"
-	[ -n "$node_id" ] || return 0
-	local pid_file="${TMP_PATH}/url_test_${node_id}_plugin.pid"
-	[ -s "$pid_file" ] && kill -9 "$(head -n 1 "$pid_file")" >/dev/null 2>&1
-	busybox pgrep -af "url_test_${node_id}" | awk '! /test\.sh/{print $1}' | xargs kill -9 >/dev/null 2>&1
-	rm -rf "${TMP_PATH}"/*"url_test_${node_id}"*.*
-}
-
-url_test_once() {
-	local curlx="$1"
-	local probe_url="$2"
-	local connect_timeout="$3"
-	local max_time="$4"
-	curl --connect-timeout "$connect_timeout" --max-time "$max_time" -o /dev/null -I -skL -w "%{http_code}:%{time_pretransfer}" -x "$curlx" "$probe_url"
-}
-
-url_test_average() {
-	local curlx="$1"
-	local probe_url="$2"
-	local i result code use_time
-	local total="0"
-	local count=0
-
-	for i in 1 2 3 4 5; do
-		result=$(url_test_once "$curlx" "$probe_url" 3 5)
-		code="${result%%:*}"
-		use_time="${result#*:}"
-		case "$code:$use_time" in
-			[1-9]*:[0-9]*|[1-9]*:[0-9]*.[0-9]*)
-				total=$(awk -v a="$total" -v b="$use_time" 'BEGIN { printf "%.6f", a + b }')
-				count=$((count + 1))
-			;;
-		esac
-	done
-
-	[ "$count" -gt 0 ] && {
-		awk -v total="$total" -v count="$count" 'BEGIN { printf "200:%.6f", total / count }'
-		return 0
-	}
-	echo "0:"
-}
-
 url_test_node() {
 	result=0
-	local node_id="$1"
-	local _type=$(echo "$(config_n_get "$node_id" type)" | tr 'A-Z' 'a-z')
+	local node_id=$1
+	local _type=$(echo $(config_n_get ${node_id} type) | tr 'A-Z' 'a-z')
 	[ -n "${_type}" ] && {
 		if [ "${_type}" == "socks" ]; then
-			local _address=$(config_n_get "$node_id" address)
-			local _port=$(config_n_get "$node_id" port)
+			local _address=$(config_n_get ${node_id} address)
+			local _port=$(config_n_get ${node_id} port)
 			[ -n "${_address}" ] && [ -n "${_port}" ] && {
 				local curlx="socks5h://${_address}:${_port}"
-				local _username=$(config_n_get "$node_id" username)
-				local _password=$(config_n_get "$node_id" password)
+				local _username=$(config_n_get ${node_id} username)
+				local _password=$(config_n_get ${node_id} password)
 				[ -n "${_username}" ] && [ -n "${_password}" ] && curlx="socks5h://${_username}:${_password}@${_address}:${_port}"
 			}
 		else
 			local _tmp_port=$(get_new_port 48900 tcp,udp)
-			NO_REC_PROCESS=1 /usr/share/${CONFIG}/app.sh run_socks flag="url_test_${node_id}" node="$node_id" bind=127.0.0.1 socks_port="${_tmp_port}" config_file="url_test_${node_id}.json"
+			NO_REC_PROCESS=1 /usr/share/${CONFIG}/app.sh run_socks flag="url_test_${node_id}" node=${node_id} bind=127.0.0.1 socks_port=${_tmp_port} config_file=url_test_${node_id}.json
 			local curlx="socks5h://127.0.0.1:${_tmp_port}"
 		fi
+		sleep 2s
 		local probeUrl=$(config_n_get @global_other[0] url_test_url https://www.google.com/generate_204)
-		[ -n "$curlx" ] && {
-			for i in 1 2 3 4 5; do
-				result=$(url_test_once "$curlx" "$probeUrl" 1 2)
-				case "$result" in
-					[1-9]*:*) break ;;
-				esac
-			done
-			result=$(url_test_average "$curlx" "$probeUrl")
-		}
-		url_test_node_cleanup "$node_id"
+		result=$(curl --connect-timeout 3 --max-time 5 -o /dev/null -I -skL -w "%{http_code}:%{time_pretransfer}" -x ${curlx} "${probeUrl}")
+		# 结束 SS 插件进程
+		local pid_file="${TMP_PATH}/url_test_${node_id}_plugin.pid"
+		[ -s "$pid_file" ] && kill -9 "$(head -n 1 "$pid_file")" >/dev/null 2>&1
+		busybox pgrep -af "url_test_${node_id}" | awk '! /test\.sh/{print $1}' | xargs kill -9 >/dev/null 2>&1
+		rm -rf ${TMP_PATH}/*url_test_${node_id}*.*
 	}
-	echo "$result"
+	echo $result
 }
 
 arg1=$1
